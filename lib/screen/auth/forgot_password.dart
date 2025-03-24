@@ -1,4 +1,6 @@
+import 'package:axion/screen/auth/login_screen.dart';
 import 'package:axion/utils/colors.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -10,8 +12,46 @@ class ForgotPassword extends StatefulWidget {
 }
 
 class _ForgotPasswordState extends State<ForgotPassword> {
-  final TextEditingController _emailController = TextEditingController();
+  TextEditingController _emailController = TextEditingController();
   bool isLoading = false;
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  Future<void> _sendPasswordResetEmail() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      String email = _emailController.text.trim();
+
+      // Send password reset email
+      await _auth.sendPasswordResetEmail(email: email);
+
+      // Show confirmation and navigate to the login screen
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Password reset email sent! Please check your email, including the spam folder, for any response',
+          ),
+        ),
+      );
+
+      // Navigate to the login screen after a successful password reset email
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (builder) => LoginScreen()),
+      ); // Replace '/login' with your actual login route
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sending password reset email: $e')),
+      );
+    }
+
+    setState(() {
+      isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +144,9 @@ class _ForgotPasswordState extends State<ForgotPassword> {
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: ElevatedButton(
-                onPressed: () async {},
+                onPressed: () async {
+                  _sendPasswordResetEmail();
+                },
                 style: ElevatedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30), // <-- Radius

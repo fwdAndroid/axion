@@ -3,10 +3,16 @@ import 'dart:io';
 import 'package:axion/screen/auth/forgot_password.dart';
 import 'package:axion/screen/auth/signup_screen.dart';
 import 'package:axion/screen/main/main_dashboard.dart';
+import 'package:axion/services/auth_methods.dart';
+import 'package:axion/services/shared_pref.dart';
 import 'package:axion/utils/colors.dart';
+import 'package:axion/utils/messagebar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:social_login_buttons/social_login_buttons.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -207,10 +213,30 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => MainDashboard()),
-                );
+                if (emailController.text.isEmpty ||
+                    passController.text.isEmpty) {
+                  showMessageBar("Email & Password is Required", context);
+                } else {
+                  setState(() {
+                    isLoading = true;
+                  });
+                  String result = await AuthMethods().loginUpUser(
+                    email: emailController.text.trim(),
+                    pass: passController.text.trim(),
+                  );
+                  if (result == 'success') {
+                    SharedPref().saveRememberMe();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (builder) => MainDashboard()),
+                    );
+                  } else {
+                    showMessageBar(result, context);
+                  }
+                  setState(() {
+                    isLoading = false;
+                  });
+                }
               },
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
@@ -221,6 +247,10 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               child: Text("Login", style: TextStyle(color: colorWhite)),
             ),
+            SizedBox(height: 20),
+            isGoogle
+                ? Center(child: CircularProgressIndicator())
+                : _buildGoogleSignInButton(),
 
             const Spacer(),
             GestureDetector(
@@ -280,5 +310,49 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
     );
+  }
+
+  Widget _buildGoogleSignInButton() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: SocialLoginButton(
+        height: 55,
+        width: 327,
+        buttonType: SocialLoginButtonType.google,
+        borderRadius: 15,
+        onPressed: () {
+          _loginWithGoogle();
+        },
+      ),
+    );
+  }
+
+  Future<void> _loginWithGoogle() async {
+    AuthMethods().signInWithGoogle().then((value) async {
+      setState(() {
+        isGoogle = true;
+      });
+
+      User? user = FirebaseAuth.instance.currentUser;
+
+      await FirebaseFirestore.instance.collection("users").doc(user?.uid).set({
+        "email": user?.email,
+        "fullName": user?.displayName,
+        "phoneNumber": user?.phoneNumber ?? "Not Available",
+        "password": "No Password Available",
+
+        "confrimPassword": "No Password Available",
+
+        "uid": user!.uid,
+      });
+
+      setState(() {
+        isGoogle = false;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (builder) => MainDashboard()),
+        );
+      });
+    });
   }
 }
