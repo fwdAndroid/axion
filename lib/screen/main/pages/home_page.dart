@@ -1,5 +1,6 @@
 import 'package:axion/screen/main/tab/my_communities.dart';
 import 'package:axion/screen/main/tab/my_feed.dart';
+import 'package:axion/screen/post/add_post.dart';
 import 'package:axion/utils/colors.dart';
 import 'package:flutter/material.dart';
 
@@ -16,9 +17,16 @@ class _HomePageState extends State<HomePage> {
     return DefaultTabController(
       length: 2, // Number of tabs
       child: Scaffold(
+        floatingActionButtonLocation:
+            FloatingActionButtonLocation.miniCenterDocked,
         floatingActionButton: FloatingActionButton(
           backgroundColor: mainColor,
-          onPressed: () {},
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (builder) => AddPost()),
+            );
+          },
           child: Icon(Icons.add, color: colorWhite),
         ),
         appBar: AppBar(
