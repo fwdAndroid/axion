@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class MyFeed extends StatefulWidget {
@@ -10,39 +11,68 @@ class MyFeed extends StatefulWidget {
 class _MyFeedState extends State<MyFeed> {
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      itemBuilder: (context, index) {
-        return Card(
-          elevation: 0,
-          child: Column(
-            children: [
-              ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: AssetImage("assets/Ellipse 5.png"),
-                ),
-                title: Text("Aarav Sharma"),
-                subtitle: Text("Banglore, India"),
-                trailing: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      appBar: AppBar(title: const Text("My Feed")),
+      body: StreamBuilder<QuerySnapshot>(
+        stream:
+            FirebaseFirestore.instance
+                .collection('feeds')
+                .orderBy('date', descending: true)
+                .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No posts available"));
+          }
+
+          var posts = snapshot.data!.docs;
+
+          return ListView.builder(
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              var post = posts[index].data() as Map<String, dynamic>;
+
+              return Card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Image.asset("assets/si_chat-duotone.png", height: 20),
-                    const SizedBox(width: 5),
-                    Text("Chat"),
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage:
+                            post['image'] != null && post['image'].isNotEmpty
+                                ? NetworkImage(post['image'])
+                                : const AssetImage("assets/Ellipse 5.png")
+                                    as ImageProvider,
+                      ),
+                      title: Text(post['titleName'] ?? "Untitled"),
+                      subtitle: Text(
+                        post['description'] ?? "No description available",
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset("assets/si_chat-duotone.png", height: 20),
+                          const SizedBox(width: 5),
+                          const Text("Chat"),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        post['description'] ?? "",
+                        textAlign: TextAlign.justify,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  "This is what i learned in my recent course The whole secret of existence The whole secret of existence lies in the pursuit of meaning, purpose, and connection. It is a delicate dance between self-discovery, compassion for others, and embracing the ever-unfolding mysterie",
-                  textAlign: TextAlign.justify,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

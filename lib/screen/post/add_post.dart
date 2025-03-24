@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:axion/screen/main/pages/home_page.dart';
 import 'package:axion/utils/colors.dart';
 import 'package:axion/utils/image.dart';
 import 'package:axion/utils/messagebar.dart';
@@ -139,6 +140,10 @@ class _AddPostState extends State<AddPost> {
                     });
 
                     showMessageBar("Feed Posted", context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (builder) => HomePage()),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     shape: RoundedRectangleBorder(
