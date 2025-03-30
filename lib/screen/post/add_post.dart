@@ -133,6 +133,7 @@ class _AddPostState extends State<AddPost> {
                           'date': DateTime.now(),
                           'uuid': uuid,
                           'uid': FirebaseAuth.instance.currentUser!.uid,
+                          'favorite': [],
                         });
 
                     setState(() {
