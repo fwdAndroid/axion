@@ -1,3 +1,4 @@
+import 'package:axion/screen/post/view_post.dart';
 import 'package:axion/services/database.dart';
 import 'package:axion/utils/colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -154,7 +155,20 @@ class _MyFeedState extends State<MyFeed> {
                           ),
                           const SizedBox(width: 10),
                           TextButton(
-                            onPressed: () async {},
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (builder) => ViewPost(
+                                        description: post['description'],
+                                        image: post['image'],
+                                        titleName: post['titleName'],
+                                        uuid: post['uuid'],
+                                      ),
+                                ),
+                              );
+                            },
                             child: Text(
                               "View Post",
                               style: TextStyle(color: black),
