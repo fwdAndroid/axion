@@ -1,5 +1,8 @@
+import 'package:axion/utils/colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:readmore/readmore.dart';
 
 class MyFeed extends StatefulWidget {
   const MyFeed({super.key});
@@ -34,39 +37,99 @@ class _MyFeedState extends State<MyFeed> {
             itemBuilder: (context, index) {
               var post = posts[index].data() as Map<String, dynamic>;
 
-              return Card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage:
-                            post['image'] != null && post['image'].isNotEmpty
-                                ? NetworkImage(post['image'])
-                                : const AssetImage("assets/Ellipse 5.png")
-                                    as ImageProvider,
+              return Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      post['image'] != null &&
+                              post['image'].toString().isNotEmpty
+                          ? Card(
+                            child: Image.network(
+                              post['image'],
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: const Icon(
+                                    Icons.image_not_supported,
+                                    size: 200,
+                                    color: Colors.grey,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                          : Center(
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 100,
+                              color: Colors.grey,
+                            ),
+                          ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          children: [
+                            Text(
+                              "Title: ",
+                              style: GoogleFonts.poppins(
+                                color: black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              post['titleName'] ?? "Untitled",
+                              style: GoogleFonts.poppins(
+                                color: black,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      title: Text(post['titleName'] ?? "Untitled"),
-                      subtitle: Text(
-                        post['description'] ?? "No description available",
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: ReadMoreText(
+                          post['description'] ?? "No description available",
+                          trimLines: 3,
+                          trimMode: TrimMode.Line,
+                          trimCollapsedText: "Read More",
+                          trimExpandedText: " Read Less",
+                          moreStyle: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          lessStyle: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+
+                      Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          Image.asset("assets/si_chat-duotone.png", height: 20),
-                          const SizedBox(width: 5),
-                          const Text("Chat"),
+                          TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              "Edit Post",
+                              style: TextStyle(color: black),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {},
+                            child: Text("Delete", style: TextStyle(color: red)),
+                          ),
                         ],
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        post['description'] ?? "",
-                        textAlign: TextAlign.justify,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
