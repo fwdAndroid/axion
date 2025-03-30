@@ -28,7 +28,7 @@ class _DonateClassState extends State<DonateClass> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Level")),
+      appBar: AppBar(title: Text("Donate Now")),
       body: Column(
         children: [
           progress < 1.0
