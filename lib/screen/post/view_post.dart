@@ -1,11 +1,14 @@
 import 'package:axion/widget/no_image_widget.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:readmore/readmore.dart';
 import 'package:uuid/uuid.dart';
 
 class ViewPost extends StatefulWidget {
   final String? description, image, titleName, uuid; // Make nullable
+  final dateTime;
 
   ViewPost({
     super.key,
@@ -13,6 +16,7 @@ class ViewPost extends StatefulWidget {
     required this.image,
     required this.titleName,
     required this.uuid,
+    required this.dateTime,
   });
 
   @override
@@ -78,8 +82,37 @@ class _ViewPostState extends State<ViewPost> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              "Published Date: ${getFormattedDateTime(widget.dateTime)}",
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+String getFormattedDateTime(dynamic dateTime) {
+  if (dateTime == null) return "Unknown Date";
+
+  // Ensure it's a DateTime object
+  DateTime parsedDate;
+  if (dateTime is Timestamp) {
+    parsedDate = dateTime.toDate(); // If it's a Firestore Timestamp
+  } else if (dateTime is String) {
+    parsedDate = DateTime.tryParse(dateTime) ?? DateTime.now();
+  } else if (dateTime is DateTime) {
+    parsedDate = dateTime;
+  } else {
+    return "Invalid Date";
+  }
+
+  return DateFormat('dd MMM yyyy, hh:mm a').format(parsedDate);
 }

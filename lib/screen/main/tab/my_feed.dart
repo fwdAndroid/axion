@@ -165,6 +165,7 @@ class _MyFeedState extends State<MyFeed> {
                                         image: post['image'],
                                         titleName: post['titleName'],
                                         uuid: post['uuid'],
+                                        dateTime: post['date'].toString(),
                                       ),
                                 ),
                               );
