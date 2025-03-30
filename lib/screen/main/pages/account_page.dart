@@ -38,34 +38,51 @@ class _AccountPageState extends State<AccountPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Center(child: Image.asset("assets/Group 162615.png", height: 120)),
-          Text(
-            "Ashutosh Pandey",
-            style: GoogleFonts.workSans(
-              color: Color(0xff1C1F34),
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-            ),
-          ),
-          Text(
-            "ashutosh@provider.com",
-            style: GoogleFonts.workSans(
-              color: Color(0xff6C757D),
-              fontWeight: FontWeight.w500,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            "Digital goodies designer @pixsellz \n Everything is designed.",
-            style: GoogleFonts.inter(
-              color: black,
-              fontWeight: FontWeight.w500,
-              fontSize: 12,
-            ),
-            textAlign: TextAlign.center,
+          StreamBuilder(
+            stream:
+                FirebaseFirestore.instance
+                    .collection("users")
+                    .doc(FirebaseAuth.instance.currentUser!.uid)
+                    .snapshots(),
+            builder: (context, AsyncSnapshot snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data == null) {
+                return Center(child: Text('No data available'));
+              }
+              var snap = snapshot.data;
+
+              return Column(
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child:
+                          snap['image'] != null && snap['image'].isNotEmpty
+                              ? CircleAvatar(
+                                backgroundImage: NetworkImage(snap['image']),
+                                radius: 60,
+                              )
+                              : CircleAvatar(
+                                radius: 60,
+                                child: Icon(Icons.person, size: 60),
+                              ),
+                    ),
+                  ),
+                  Text(
+                    snap['fullName'],
+                    style: GoogleFonts.workSans(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           SizedBox(
-            height: 400,
+            height: MediaQuery.of(context).size.height / 1.7,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 return StreamBuilder<QuerySnapshot>(
