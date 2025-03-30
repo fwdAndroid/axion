@@ -1,5 +1,6 @@
 import 'package:axion/utils/colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:readmore/readmore.dart';
@@ -21,13 +22,26 @@ class _MyFeedState extends State<MyFeed> {
             FirebaseFirestore.instance
                 .collection('feeds')
                 .orderBy('date', descending: true)
+                .where(
+                  "uid",
+                  isNotEqualTo: FirebaseAuth.instance.currentUser!.uid,
+                )
                 .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No posts available"));
+            return const Center(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.podcasts_outlined, size: 40),
+                  Text("No posts available"),
+                ],
+              ),
+            );
           }
 
           var posts = snapshot.data!.docs;
@@ -115,16 +129,20 @@ class _MyFeedState extends State<MyFeed> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          IconButton(
+                            onPressed: () {},
+                            icon: Icon(Icons.favorite),
+                          ),
                           TextButton(
                             onPressed: () {},
                             child: Text(
-                              "Edit Post",
+                              "View Post",
                               style: TextStyle(color: black),
                             ),
                           ),
                           TextButton(
                             onPressed: () {},
-                            child: Text("Delete", style: TextStyle(color: red)),
+                            child: Text("Chat", style: TextStyle(color: black)),
                           ),
                         ],
                       ),
