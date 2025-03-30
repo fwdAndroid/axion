@@ -1,3 +1,4 @@
+import 'package:axion/services/database.dart';
 import 'package:axion/utils/colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,6 +14,8 @@ class MyFeed extends StatefulWidget {
 }
 
 class _MyFeedState extends State<MyFeed> {
+  final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,7 +53,9 @@ class _MyFeedState extends State<MyFeed> {
             itemCount: posts.length,
             itemBuilder: (context, index) {
               var post = posts[index].data() as Map<String, dynamic>;
-
+              List<dynamic> likes = post['favorite'] ?? [];
+              bool isLiked = likes.contains(currentUserId);
+              int likeCount = likes.length;
               return Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Card(
@@ -130,11 +135,26 @@ class _MyFeedState extends State<MyFeed> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           IconButton(
-                            onPressed: () {},
-                            icon: Icon(Icons.favorite),
+                            onPressed: () {
+                              Database().toggleLike(post['uuid'], likes);
+                            },
+                            icon: Icon(
+                              isLiked
+                                  ? Icons.thumb_up
+                                  : Icons.thumbs_up_down_outlined,
+                              color: isLiked ? Colors.green : Colors.grey,
+                            ),
                           ),
+                          Text(
+                            "$likeCount",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
                           TextButton(
-                            onPressed: () {},
+                            onPressed: () async {},
                             child: Text(
                               "View Post",
                               style: TextStyle(color: black),
