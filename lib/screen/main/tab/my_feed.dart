@@ -1,3 +1,4 @@
+import 'package:axion/screen/main/chat/chat_detail_page.dart';
 import 'package:axion/screen/post/view_post.dart';
 import 'package:axion/services/database.dart';
 import 'package:axion/utils/colors.dart';
@@ -16,20 +17,39 @@ class MyFeed extends StatefulWidget {
 
 class _MyFeedState extends State<MyFeed> {
   final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+  String? currentUserName;
+  String? currentUserImage;
+  final Database _database = Database();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCurrentUserDetails();
+  }
+
+  Future<void> _fetchCurrentUserDetails() async {
+    final userDoc =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUserId)
+            .get();
+    if (userDoc.exists) {
+      setState(() {
+        currentUserName = userDoc['fullName'];
+        currentUserImage = userDoc['image'];
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("My Feed")),
       body: StreamBuilder<QuerySnapshot>(
         stream:
             FirebaseFirestore.instance
                 .collection('feeds')
                 .orderBy('date', descending: true)
-                .where(
-                  "uid",
-                  isNotEqualTo: FirebaseAuth.instance.currentUser!.uid,
-                )
+                .where("uid", isNotEqualTo: currentUserId)
                 .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -57,6 +77,7 @@ class _MyFeedState extends State<MyFeed> {
               List<dynamic> likes = post['favorite'] ?? [];
               bool isLiked = likes.contains(currentUserId);
               int likeCount = likes.length;
+
               return Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Card(
@@ -120,24 +141,23 @@ class _MyFeedState extends State<MyFeed> {
                           trimMode: TrimMode.Line,
                           trimCollapsedText: "Read More",
                           trimExpandedText: " Read Less",
-                          moreStyle: TextStyle(
+                          moreStyle: const TextStyle(
                             color: Colors.blue,
                             fontWeight: FontWeight.bold,
                           ),
-                          lessStyle: TextStyle(
+                          lessStyle: const TextStyle(
                             color: Colors.blue,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-
-                      Divider(),
+                      const Divider(),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           IconButton(
                             onPressed: () {
-                              Database().toggleLike(post['uuid'], likes);
+                              _database.toggleLike(post['uuid'], likes);
                             },
                             icon: Icon(
                               isLiked
@@ -176,7 +196,88 @@ class _MyFeedState extends State<MyFeed> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () {},
+                            onPressed: () async {
+                              try {
+                                // Show loading indicator
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder:
+                                      (context) => const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                );
+
+                                // Get friend data
+                                final friendDoc =
+                                    await FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(post['uid'])
+                                        .get();
+
+                                // Validate data
+                                if (!friendDoc.exists) {
+                                  throw Exception('Friend profile not found');
+                                }
+                                if (currentUserName == null) {
+                                  throw Exception('Your profile not loaded');
+                                }
+
+                                // Create chat
+                                final chatId = await _database
+                                    .createChatDocument(
+                                      currentUserId: currentUserId,
+                                      currentUserName: currentUserName!,
+                                      currentUserPhoto: currentUserImage,
+                                      friendId: post['uid'],
+                                      friendName:
+                                          friendDoc['fullName'] ?? 'Unknown',
+                                      friendPhoto: friendDoc['image'],
+                                    );
+
+                                // Close loading dialog
+                                if (!mounted) return;
+                                Navigator.of(context).pop();
+
+                                if (chatId == null) {
+                                  throw Exception('Failed to create chat');
+                                }
+
+                                // Open chat screen
+                                if (!mounted) return;
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) => ChatDetailPage(
+                                          chatId: chatId,
+                                          currentUserId: currentUserId,
+                                          friendId: post['uid'],
+                                          friendName:
+                                              friendDoc['fullName'] ??
+                                              'Unknown',
+                                          friendImage: friendDoc['image'],
+                                        ),
+                                  ),
+                                );
+                              } catch (e) {
+                                // Close loading dialog if still open
+                                if (mounted) Navigator.of(context).pop();
+
+                                // Show error message
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed to start chat: ${e.toString()}',
+                                      ),
+                                      duration: const Duration(seconds: 3),
+                                    ),
+                                  );
+                                }
+                                debugPrint('Chat start error: $e');
+                              }
+                            },
                             child: Text("Chat", style: TextStyle(color: black)),
                           ),
                         ],

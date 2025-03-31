@@ -32,10 +32,10 @@ class _ChatPageState extends State<ChatPage> {
         itemBuilder: (BuildContext context, int index) {
           return ListTile(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (builder) => ChatDetailPage()),
-              );
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(builder: (builder) => ChatDetailPage()),
+              // );
             },
             leading: CircleAvatar(
               backgroundImage: AssetImage("assets/logo.png"),
