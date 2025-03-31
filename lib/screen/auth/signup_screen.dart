@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:axion/services/auth_methods.dart';
 import 'package:axion/utils/colors.dart';
+import 'package:axion/utils/image.dart';
 import 'package:axion/utils/messagebar.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -20,6 +24,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isPasswordVisible = false;
   final _formKey = GlobalKey<FormState>();
   bool isLoading = false;
+  Uint8List? _image;
 
   @override
   Widget build(BuildContext context) {
@@ -29,12 +34,30 @@ class _SignupScreenState extends State<SignupScreen> {
           key: _formKey,
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Image.asset(
-                  'assets/logo.png', // Replace with your icon asset
-                  height: 200,
-                  fit: BoxFit.cover,
+              GestureDetector(
+                onTap: () => selectImage(),
+                child: Stack(
+                  children: [
+                    _image != null
+                        ? CircleAvatar(
+                          radius: 59,
+                          backgroundImage: MemoryImage(_image!),
+                        )
+                        : CircleAvatar(
+                          radius: 59,
+                          backgroundImage: AssetImage(
+                            'assets/profilephoto.png',
+                          ),
+                        ),
+                    Positioned(
+                      bottom: -10,
+                      left: 70,
+                      child: IconButton(
+                        onPressed: () => selectImage(),
+                        icon: Icon(Icons.add_a_photo, color: black),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Padding(
@@ -328,6 +351,11 @@ class _SignupScreenState extends State<SignupScreen> {
                   ? Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                     onPressed: () async {
+                      if (_image == null) {
+                        showMessageBar("Profile Image is Required", context);
+                        return;
+                      }
+                      Uint8List imageToUpload = _image!;
                       if (userNameController.text.isEmpty) {
                         showMessageBar("User Name is Required", context);
                       } else if (emailController.text.isEmpty) {
@@ -352,6 +380,7 @@ class _SignupScreenState extends State<SignupScreen> {
                             password: passController.text.trim(),
 
                             phoneNumber: phoneController.text.trim(),
+                            file: imageToUpload,
                           );
                         }
                         setState(() {
@@ -376,5 +405,12 @@ class _SignupScreenState extends State<SignupScreen> {
         ),
       ),
     );
+  }
+
+  selectImage() async {
+    Uint8List ui = await pickImage(ImageSource.gallery);
+    setState(() {
+      _image = ui;
+    });
   }
 }

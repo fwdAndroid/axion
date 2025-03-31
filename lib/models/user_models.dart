@@ -7,6 +7,7 @@ class UserModel {
   String confrimPassword;
   String phoneNumber;
   String fullName;
+  String image;
 
   UserModel({
     required this.uuid,
@@ -14,6 +15,7 @@ class UserModel {
     required this.fullName,
     required this.password,
     required this.phoneNumber,
+    required this.image,
     required this.confrimPassword,
   });
 
@@ -25,6 +27,7 @@ class UserModel {
     'confrimPassword': confrimPassword,
     'phoneNumber': phoneNumber,
     'fullName': fullName,
+    'image': image,
   };
 
   ///
@@ -37,7 +40,7 @@ class UserModel {
       password: snapshot['password'],
       confrimPassword: snapshot['confrimPassword'],
       phoneNumber: snapshot['phoneNumber'],
-
+      image: snapshot['image'],
       fullName: snapshot['fullName'],
     );
   }

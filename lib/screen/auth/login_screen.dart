@@ -340,7 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
         "fullName": user?.displayName,
         "phoneNumber": user?.phoneNumber ?? "Not Available",
         "password": "No Password Available",
-
+        "image": FirebaseAuth.instance.currentUser!.photoURL,
         "confrimPassword": "No Password Available",
 
         "uid": user!.uid,
