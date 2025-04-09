@@ -102,4 +102,37 @@ class Database {
       'lastMessageTime': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<void> sendJoinRequest(String communityId) async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('communities')
+          .doc(communityId)
+          .collection('joinRequests')
+          .doc(userId)
+          .set({
+            'userId': userId,
+            'status': 'pending',
+            'requestedAt': FieldValue.serverTimestamp(),
+          });
+    } catch (e) {
+      print("Error sending request: $e");
+    }
+  }
+
+  // Function to check if user has already sent a join request
+  Future<bool> hasSentRequest(String communityId) async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    var doc =
+        await FirebaseFirestore.instance
+            .collection('communities')
+            .doc(communityId)
+            .collection('joinRequests')
+            .doc(userId)
+            .get();
+
+    return doc.exists;
+  }
 }

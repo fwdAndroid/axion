@@ -1,4 +1,5 @@
 import 'package:axion/screen/main/setting_page.dart';
+import 'package:axion/screen/post/edit_post.dart';
 import 'package:axion/utils/colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -99,7 +100,15 @@ class _AccountPageState extends State<AccountPage> {
                       return const Center(child: CircularProgressIndicator());
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(child: Text("No posts available"));
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.no_photography, size: 40),
+                            Text("No posts available"),
+                          ],
+                        ),
+                      );
                     }
 
                     var posts = snapshot.data!.docs;
@@ -193,14 +202,92 @@ class _AccountPageState extends State<AccountPage> {
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
                                     TextButton(
-                                      onPressed: () {},
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (builder) => EditPost(
+                                                  uuid: post['uuid'],
+                                                  description:
+                                                      post['description'],
+                                                  title: post['titleName'],
+                                                  photo: post['image'],
+                                                ),
+                                          ),
+                                        );
+                                      },
                                       child: Text(
                                         "Edit Post",
                                         style: TextStyle(color: black),
                                       ),
                                     ),
                                     TextButton(
-                                      onPressed: () {},
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              title: Text("Confirm Deletion"),
+                                              content: Text(
+                                                "Are you sure you want to delete this post?",
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () {
+                                                    Navigator.pop(
+                                                      context,
+                                                    ); // Close the dialog
+                                                  },
+                                                  child: Text("Cancel"),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () async {
+                                                    try {
+                                                      await FirebaseFirestore
+                                                          .instance
+                                                          .collection('feeds')
+                                                          .doc(
+                                                            post['uuid'],
+                                                          ) // Ensure you have a unique ID for each post
+                                                          .delete();
+
+                                                      Navigator.pop(
+                                                        context,
+                                                      ); // Close the dialog
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            "Post deleted successfully",
+                                                          ),
+                                                        ),
+                                                      );
+                                                    } catch (e) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(
+                                                            "Failed to delete post: $e",
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  },
+                                                  child: Text(
+                                                    "Delete",
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                      },
                                       child: Text(
                                         "Delete",
                                         style: TextStyle(color: red),
