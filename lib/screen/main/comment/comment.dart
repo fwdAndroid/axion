@@ -1,12 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 class ViewComment extends StatefulWidget {
   final String postId;
-
   const ViewComment({super.key, required this.postId});
 
   @override
@@ -14,78 +13,65 @@ class ViewComment extends StatefulWidget {
 }
 
 class _ViewCommentState extends State<ViewComment> {
-  final currentUserId = FirebaseAuth.instance.currentUser!.uid;
-  String? currentUserName;
-  String? currentUserImage;
-  final _commentController = TextEditingController();
-  final _replyController = TextEditingController();
-  String? _editingCommentId;
+  final TextEditingController _commentController = TextEditingController();
+  final TextEditingController _replyController = TextEditingController();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _showEmojiPicker = false;
   String? _replyingToCommentId;
-  final _commentFocusNode = FocusNode();
-  final _replyFocusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchCurrentUserDetails();
-  }
+  String? _replyingToUsername;
+  bool _isReplying = false;
 
   @override
   void dispose() {
     _commentController.dispose();
     _replyController.dispose();
-    _commentFocusNode.dispose();
-    _replyFocusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchCurrentUserDetails() async {
-    final userDoc =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUserId)
-            .get();
-    if (userDoc.exists) {
-      setState(() {
-        currentUserName = userDoc['fullName'];
-        currentUserImage = userDoc['image'];
-      });
-    }
-  }
-
   Future<void> _addComment() async {
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
+    final String commentText = _commentController.text.trim();
+    if (commentText.isEmpty) return;
+
+    final String commentId = const Uuid().v4();
+    final String userId = _auth.currentUser!.uid;
+    final String username = _auth.currentUser!.displayName ?? 'Anonymous';
+    final DateTime now = DateTime.now();
 
     try {
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final commentRef =
-            FirebaseFirestore.instance
-                .collection('posts')
-                .doc(widget.postId)
-                .collection('comments')
-                .doc();
+      final docRef = _firestore.collection('feeds').doc(widget.postId);
+      final docSnapshot = await docRef.get();
 
-        transaction.set(commentRef, {
-          'text': text,
-          'userId': currentUserId,
-          'userName': currentUserName,
-          'userImage': currentUserImage,
-          'timestamp': FieldValue.serverTimestamp(),
-          'likes': [],
-          'dislikes': [],
-          'repliesCount': 0,
-          'edited': false,
-        });
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post not found')));
+        return;
+      }
 
-        final postRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId);
-        transaction.update(postRef, {'commentCount': FieldValue.increment(1)});
+      if (!docSnapshot.data()!.containsKey('comment')) {
+        await docRef.set({'comment': []}, SetOptions(merge: true));
+      }
+
+      await docRef.update({
+        'comment': FieldValue.arrayUnion([
+          {
+            'id': commentId,
+            'userId': userId,
+            'username': username,
+            'text': commentText,
+            'createdAt': now,
+            'likes': [],
+            'replies': [],
+            'isReply': false,
+          },
+        ]),
       });
 
       _commentController.clear();
-      _commentFocusNode.unfocus();
+      setState(() {
+        _showEmojiPicker = false;
+      });
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -93,91 +79,69 @@ class _ViewCommentState extends State<ViewComment> {
     }
   }
 
-  Future<void> _updateComment(String commentId) async {
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _addReply() async {
+    final String replyText = _replyController.text.trim();
+    if (replyText.isEmpty || _replyingToCommentId == null) return;
+
+    final String replyId = const Uuid().v4();
+    final String userId = _auth.currentUser!.uid;
+    final String username = _auth.currentUser!.displayName ?? 'Anonymous';
+    final DateTime now = DateTime.now();
 
     try {
-      await FirebaseFirestore.instance
-          .collection('posts')
-          .doc(widget.postId)
-          .collection('comments')
-          .doc(commentId)
-          .update({'text': text, 'edited': true});
+      final docRef = _firestore.collection('feeds').doc(widget.postId);
+      final docSnapshot = await docRef.get();
 
-      _commentController.clear();
-      _commentFocusNode.unfocus();
-      setState(() {
-        _editingCommentId = null;
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post not found')));
+        return;
+      }
+
+      final List<dynamic> comments = docSnapshot.data()?['comment'] ?? [];
+      final commentIndex = comments.indexWhere(
+        (c) => c['id'] == _replyingToCommentId,
+      );
+
+      if (commentIndex == -1) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Comment not found')));
+        return;
+      }
+
+      final updatedComment = Map<String, dynamic>.from(comments[commentIndex]);
+      final List<dynamic> replies = List.from(updatedComment['replies'] ?? []);
+
+      replies.add({
+        'id': replyId,
+        'userId': userId,
+        'username': username,
+        'text': replyText,
+        'createdAt': now,
+        'likes': [],
+        'isReply': true,
+        'parentCommentId': _replyingToCommentId,
+        'replyingTo': _replyingToUsername,
       });
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to update comment: $e')));
-    }
-  }
 
-  Future<void> _deleteComment(String commentId) async {
-    try {
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final commentRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .collection('comments')
-            .doc(commentId);
-        transaction.delete(commentRef);
+      updatedComment['replies'] = replies;
 
-        final postRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId);
-        transaction.update(postRef, {'commentCount': FieldValue.increment(-1)});
+      // Update the comment with new replies
+      await docRef.update({
+        'comment': FieldValue.arrayRemove([comments[commentIndex]]),
       });
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete comment: $e')));
-    }
-  }
-
-  Future<void> _addReply(String parentCommentId) async {
-    final text = _replyController.text.trim();
-    if (text.isEmpty) return;
-
-    try {
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final replyRef =
-            FirebaseFirestore.instance
-                .collection('posts')
-                .doc(widget.postId)
-                .collection('comments')
-                .doc(parentCommentId)
-                .collection('replies')
-                .doc();
-
-        transaction.set(replyRef, {
-          'text': text,
-          'userId': currentUserId,
-          'userName': currentUserName,
-          'userImage': currentUserImage,
-          'timestamp': FieldValue.serverTimestamp(),
-          'likes': [],
-          'dislikes': [],
-        });
-
-        final commentRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .collection('comments')
-            .doc(parentCommentId);
-        transaction.update(commentRef, {
-          'repliesCount': FieldValue.increment(1),
-        });
+      await docRef.update({
+        'comment': FieldValue.arrayUnion([updatedComment]),
       });
 
       _replyController.clear();
-      _replyFocusNode.unfocus();
       setState(() {
+        _isReplying = false;
         _replyingToCommentId = null;
+        _replyingToUsername = null;
+        _showEmojiPicker = false;
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -186,390 +150,111 @@ class _ViewCommentState extends State<ViewComment> {
     }
   }
 
-  Future<void> _toggleLike(
-    String commentId,
-    List<dynamic> currentLikes, {
-    bool isReply = false,
-    String? parentCommentId,
-  }) async {
-    try {
-      DocumentReference commentRef;
-
-      if (isReply && parentCommentId != null) {
-        commentRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .collection('comments')
-            .doc(parentCommentId)
-            .collection('replies')
-            .doc(commentId);
-      } else {
-        commentRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .collection('comments')
-            .doc(commentId);
-      }
-
-      if (currentLikes.contains(currentUserId)) {
-        await commentRef.update({
-          'likes': FieldValue.arrayRemove([currentUserId]),
-        });
-      } else {
-        await commentRef.update({
-          'likes': FieldValue.arrayUnion([currentUserId]),
-          'dislikes': FieldValue.arrayRemove([currentUserId]),
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to like comment: $e')));
-    }
-  }
-
-  Future<void> _toggleDislike(
-    String commentId,
-    List<dynamic> currentDislikes, {
-    bool isReply = false,
-    String? parentCommentId,
-  }) async {
-    try {
-      DocumentReference commentRef;
-
-      if (isReply && parentCommentId != null) {
-        commentRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .collection('comments')
-            .doc(parentCommentId)
-            .collection('replies')
-            .doc(commentId);
-      } else {
-        commentRef = FirebaseFirestore.instance
-            .collection('posts')
-            .doc(widget.postId)
-            .collection('comments')
-            .doc(commentId);
-      }
-
-      if (currentDislikes.contains(currentUserId)) {
-        await commentRef.update({
-          'dislikes': FieldValue.arrayRemove([currentUserId]),
-        });
-      } else {
-        await commentRef.update({
-          'dislikes': FieldValue.arrayUnion([currentUserId]),
-          'likes': FieldValue.arrayRemove([currentUserId]),
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to dislike comment: $e')));
-    }
-  }
-
-  void _startEditingComment(String commentId, String text) {
+  void _startReply(String commentId, String username) {
     setState(() {
-      _editingCommentId = commentId;
-      _commentController.text = text;
-      _commentFocusNode.requestFocus();
-    });
-  }
-
-  void _startReplyingToComment(String commentId) {
-    setState(() {
+      _isReplying = true;
       _replyingToCommentId = commentId;
-      _replyController.clear();
-      _replyFocusNode.requestFocus();
+      _replyingToUsername = username;
+    });
+    FocusScope.of(context).requestFocus(FocusNode());
+    Future.delayed(const Duration(milliseconds: 300), () {
+      FocusScope.of(context).requestFocus(FocusNode());
+      FocusScope.of(context).requestFocus(FocusNode());
     });
   }
 
-  Widget _buildCommentTile(
-    DocumentSnapshot comment, {
-    bool isReply = false,
-    String? parentCommentId,
-  }) {
-    final data = comment.data() as Map<String, dynamic>;
-    final likes = data['likes'] ?? [];
-    final dislikes = data['dislikes'] ?? [];
-    final isLiked = likes.contains(currentUserId);
-    final isDisliked = dislikes.contains(currentUserId);
-    final isOwner = data['userId'] == currentUserId;
-    final timestamp = data['timestamp']?.toDate();
-    final edited = data['edited'] ?? false;
-
-    return Card(
-      margin: EdgeInsets.only(
-        left: isReply ? 24.0 : 8.0,
-        right: 8.0,
-        top: 4.0,
-        bottom: 4.0,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundImage:
-                      data['userImage'] != null
-                          ? NetworkImage(data['userImage'])
-                          : null,
-                  child:
-                      data['userImage'] == null
-                          ? const Icon(Icons.person, size: 16)
-                          : null,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  data['userName'] ?? 'Anonymous',
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                if (timestamp != null)
-                  Text(
-                    DateFormat('MMM d, h:mm a').format(timestamp),
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                if (edited)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4.0),
-                    child: Text(
-                      '(edited)',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(data['text']),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.thumb_up,
-                    size: 18,
-                    color: isLiked ? Colors.blue : Colors.grey,
-                  ),
-                  onPressed:
-                      () => _toggleLike(
-                        comment.id,
-                        likes,
-                        isReply: isReply,
-                        parentCommentId: parentCommentId,
-                      ),
-                ),
-                Text('${likes.length}'),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: Icon(
-                    Icons.thumb_down,
-                    size: 18,
-                    color: isDisliked ? Colors.red : Colors.grey,
-                  ),
-                  onPressed:
-                      () => _toggleDislike(
-                        comment.id,
-                        dislikes,
-                        isReply: isReply,
-                        parentCommentId: parentCommentId,
-                      ),
-                ),
-                Text('${dislikes.length}'),
-                const SizedBox(width: 8),
-                if (!isReply)
-                  IconButton(
-                    icon: const Icon(Icons.reply, size: 18),
-                    onPressed: () => _startReplyingToComment(comment.id),
-                  ),
-                if (isOwner && !isReply)
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 18),
-                    onPressed:
-                        () => _startEditingComment(comment.id, data['text']),
-                  ),
-                if (isOwner)
-                  IconButton(
-                    icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                    onPressed: () => _deleteComment(comment.id),
-                  ),
-              ],
-            ),
-            if (!isReply && (data['repliesCount'] ?? 0) > 0)
-              StreamBuilder<QuerySnapshot>(
-                stream:
-                    FirebaseFirestore.instance
-                        .collection('posts')
-                        .doc(widget.postId)
-                        .collection('comments')
-                        .doc(comment.id)
-                        .collection('replies')
-                        .orderBy('timestamp', descending: false)
-                        .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const SizedBox();
-                  }
-
-                  return Column(
-                    children:
-                        snapshot.data!.docs.map((reply) {
-                          return _buildCommentTile(
-                            reply,
-                            isReply: true,
-                            parentCommentId: comment.id,
-                          );
-                        }).toList(),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCommentInput() {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _commentController,
-              focusNode: _commentFocusNode,
-              decoration: InputDecoration(
-                hintText: 'Write your comment...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-              maxLines: 3,
-              minLines: 1,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (_editingCommentId != null)
-                  TextButton(
-                    onPressed: () {
-                      _commentController.clear();
-                      _commentFocusNode.unfocus();
-                      setState(() {
-                        _editingCommentId = null;
-                      });
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                ElevatedButton(
-                  onPressed:
-                      _editingCommentId != null
-                          ? () => _updateComment(_editingCommentId!)
-                          : _addComment,
-                  child: Text(_editingCommentId != null ? 'Update' : 'Post'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReplyInput(String parentCommentId) {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            const Text(
-              'Replying to comment',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _replyController,
-              focusNode: _replyFocusNode,
-              decoration: InputDecoration(
-                hintText: 'Write your reply...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-              maxLines: 3,
-              minLines: 1,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    _replyController.clear();
-                    _replyFocusNode.unfocus();
-                    setState(() {
-                      _replyingToCommentId = null;
-                    });
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _addReply(parentCommentId),
-                  child: const Text('Reply'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+  void _cancelReply() {
+    setState(() {
+      _isReplying = false;
+      _replyingToCommentId = null;
+      _replyingToUsername = null;
+      _replyController.clear();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Comments', style: GoogleFonts.poppins())),
+      appBar: AppBar(title: const Text("Comments")),
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
+            child: StreamBuilder<DocumentSnapshot>(
               stream:
-                  FirebaseFirestore.instance
-                      .collection('posts')
-                      .doc(widget.postId)
-                      .collection('comments')
-                      .orderBy('timestamp', descending: true)
-                      .snapshots(),
+                  _firestore.collection('feeds').doc(widget.postId).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return const Center(child: Text('Post not found or deleted'));
+                }
+
+                final postData = snapshot.data!.data() as Map<String, dynamic>;
+                final comments = postData['comment'] as List<dynamic>? ?? [];
+
+                if (comments.isEmpty) {
                   return const Center(child: Text('No comments yet'));
                 }
 
                 return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
+                  itemCount: comments.length,
                   itemBuilder: (context, index) {
-                    final comment = snapshot.data!.docs[index];
-
+                    final comment = comments[index];
+                    final replies = comment['replies'] as List<dynamic>? ?? [];
                     return Column(
                       children: [
-                        _buildCommentTile(comment),
-                        if (_replyingToCommentId == comment.id)
-                          _buildReplyInput(comment.id),
+                        CommentTile(
+                          comment: comment,
+                          currentUserId: _auth.currentUser?.uid,
+                          onDelete: () => _deleteComment(comment['id']),
+                          onLike:
+                              () => _toggleLike(
+                                comment['id'],
+                                _auth.currentUser!.uid,
+                                false,
+                              ),
+                          onReply:
+                              () => _startReply(
+                                comment['id'],
+                                comment['username'],
+                              ),
+                          isReply: false,
+                        ),
+                        if (replies.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Column(
+                              children:
+                                  replies
+                                      .map(
+                                        (reply) => CommentTile(
+                                          comment: reply,
+                                          currentUserId: _auth.currentUser?.uid,
+                                          onDelete:
+                                              () => _deleteReply(
+                                                comment['id'],
+                                                reply['id'],
+                                              ),
+                                          onLike:
+                                              () => _toggleLike(
+                                                reply['id'],
+                                                _auth.currentUser!.uid,
+                                                true,
+                                                comment['id'],
+                                              ),
+                                          onReply:
+                                              () => _startReply(
+                                                comment['id'],
+                                                reply['username'],
+                                              ),
+                                          isReply: true,
+                                        ),
+                                      )
+                                      .toList(),
+                            ),
+                          ),
                       ],
                     );
                   },
@@ -577,9 +262,352 @@ class _ViewCommentState extends State<ViewComment> {
               },
             ),
           ),
+          if (_isReplying) _buildReplyInput(),
           _buildCommentInput(),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) {
+                  if (_isReplying) {
+                    _replyController.text = _replyController.text + emoji.emoji;
+                  } else {
+                    _commentController.text =
+                        _commentController.text + emoji.emoji;
+                  }
+                },
+                config: const Config(height: 32.0),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  Widget _buildCommentInput() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.emoji_emotions),
+            onPressed: () {
+              setState(() {
+                _showEmojiPicker = !_showEmojiPicker;
+              });
+            },
+          ),
+          Expanded(
+            child: TextField(
+              controller: _commentController,
+              decoration: const InputDecoration(
+                hintText: 'Write a comment...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.send), onPressed: _addComment),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyInput() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(
+                'Replying to $_replyingToUsername',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              const Spacer(),
+              TextButton(onPressed: _cancelReply, child: const Text('Cancel')),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.emoji_emotions),
+                onPressed: () {
+                  setState(() {
+                    _showEmojiPicker = !_showEmojiPicker;
+                  });
+                },
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _replyController,
+                  decoration: const InputDecoration(
+                    hintText: 'Write a reply...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              IconButton(icon: const Icon(Icons.send), onPressed: _addReply),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteComment(String commentId) async {
+    try {
+      final docRef = _firestore.collection('feeds').doc(widget.postId);
+      final docSnapshot = await docRef.get();
+
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post not found')));
+        return;
+      }
+
+      final List<dynamic> comments = docSnapshot.data()?['comment'] ?? [];
+
+      // Find the comment to remove
+      final commentToRemove = comments.firstWhere(
+        (comment) => comment['id'] == commentId,
+      );
+
+      // Remove the comment from the array
+      await docRef.update({
+        'comment': FieldValue.arrayRemove([commentToRemove]),
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete comment: $e')));
+    }
+  }
+
+  Future<void> _deleteReply(String parentCommentId, String replyId) async {
+    try {
+      final docRef = _firestore.collection('feeds').doc(widget.postId);
+      final docSnapshot = await docRef.get();
+
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post not found')));
+        return;
+      }
+
+      final List<dynamic> comments = docSnapshot.data()?['comment'] ?? [];
+      final commentIndex = comments.indexWhere(
+        (c) => c['id'] == parentCommentId,
+      );
+
+      if (commentIndex == -1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Parent comment not found')),
+        );
+        return;
+      }
+
+      final updatedComment = Map<String, dynamic>.from(comments[commentIndex]);
+      final List<dynamic> replies = List.from(updatedComment['replies'] ?? []);
+      final replyIndex = replies.indexWhere((r) => r['id'] == replyId);
+
+      if (replyIndex == -1) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Reply not found')));
+        return;
+      }
+
+      replies.removeAt(replyIndex);
+      updatedComment['replies'] = replies;
+
+      // Update the comment with removed reply
+      await docRef.update({
+        'comment': FieldValue.arrayRemove([comments[commentIndex]]),
+      });
+      await docRef.update({
+        'comment': FieldValue.arrayUnion([updatedComment]),
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to delete reply: $e')));
+    }
+  }
+
+  Future<void> _toggleLike(
+    String commentId,
+    String userId,
+    bool isReply, [
+    String? parentCommentId,
+  ]) async {
+    try {
+      final docRef = _firestore.collection('feeds').doc(widget.postId);
+      final docSnapshot = await docRef.get();
+
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post not found')));
+        return;
+      }
+
+      final List<dynamic> comments = docSnapshot.data()?['comments'] ?? [];
+
+      if (isReply && parentCommentId != null) {
+        // Handle reply like
+        final commentIndex = comments.indexWhere(
+          (c) => c['id'] == parentCommentId,
+        );
+        if (commentIndex == -1) return;
+
+        final updatedComment = Map<String, dynamic>.from(
+          comments[commentIndex],
+        );
+        final List<dynamic> replies = List.from(
+          updatedComment['replies'] ?? [],
+        );
+        final replyIndex = replies.indexWhere((r) => r['id'] == commentId);
+        if (replyIndex == -1) return;
+
+        final reply = replies[replyIndex];
+        final List<dynamic> likes = List.from(reply['likes'] ?? []);
+
+        if (likes.contains(userId)) {
+          likes.remove(userId);
+        } else {
+          likes.add(userId);
+        }
+
+        replies[replyIndex] = {...reply, 'likes': likes};
+
+        updatedComment['replies'] = replies;
+
+        // Update the comment with updated reply
+        await docRef.update({
+          'comment': FieldValue.arrayRemove([comments[commentIndex]]),
+        });
+        await docRef.update({
+          'comment': FieldValue.arrayUnion([updatedComment]),
+        });
+      } else {
+        // Handle comment like
+        final commentIndex = comments.indexWhere((c) => c['id'] == commentId);
+        if (commentIndex == -1) return;
+
+        final comment = comments[commentIndex];
+        final List<dynamic> likes = List.from(comment['likes'] ?? []);
+
+        if (likes.contains(userId)) {
+          likes.remove(userId);
+        } else {
+          likes.add(userId);
+        }
+
+        final updatedComment = {...comment, 'likes': likes};
+
+        // Update the comment in the array
+        await docRef.update({
+          'comment': FieldValue.arrayRemove([comments[commentIndex]]),
+        });
+        await docRef.update({
+          'comment': FieldValue.arrayUnion([updatedComment]),
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to like: $e')));
+    }
+  }
+}
+
+class CommentTile extends StatelessWidget {
+  final Map<String, dynamic> comment;
+  final String? currentUserId;
+  final VoidCallback onDelete;
+  final VoidCallback onLike;
+  final VoidCallback onReply;
+  final bool isReply;
+
+  const CommentTile({
+    super.key,
+    required this.comment,
+    this.currentUserId,
+    required this.onDelete,
+    required this.onLike,
+    required this.onReply,
+    required this.isReply,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isCurrentUser = comment['userId'] == currentUserId;
+    final likes = List<String>.from(comment['likes'] ?? []);
+    final isLiked = likes.contains(currentUserId);
+    final username = comment['username'] ?? 'Anonymous';
+    final replyingTo = comment['replyingTo'];
+
+    return Container(
+      decoration: BoxDecoration(
+        border:
+            isReply
+                ? Border(left: BorderSide(color: Colors.grey[300]!, width: 2.0))
+                : null,
+      ),
+      child: ListTile(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (isReply && replyingTo != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4.0),
+                child: Text(
+                  'Replying to $replyingTo',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            Text(comment['text']),
+          ],
+        ),
+        subtitle: Text(
+          '$username • ${_formatDate(comment['createdAt']?.toDate())}',
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? Colors.red : null,
+                size: 20,
+              ),
+              onPressed: onLike,
+            ),
+            if (likes.isNotEmpty)
+              Text('${likes.length}', style: const TextStyle(fontSize: 12)),
+            IconButton(
+              icon: const Icon(Icons.reply, size: 20),
+              onPressed: onReply,
+            ),
+            if (isCurrentUser)
+              IconButton(
+                icon: const Icon(Icons.delete, size: 20),
+                onPressed: onDelete,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime? date) {
+    if (date == null) return '';
+    return '${date.hour}:${date.minute.toString().padLeft(2, '0')} • ${date.day}/${date.month}/${date.year}';
   }
 }
