@@ -260,27 +260,6 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          TextButton(
-                            onPressed: () {
-                              // Navigator.push(
-                              //   context,
-                              //   MaterialPageRoute(
-                              //     builder:
-                              //         (builder) => ViewPost(
-                              //           description: post['description'],
-                              //           image: post['image'],
-                              //           titleName: post['titleName'],
-                              //           uuid: post['uuid'],
-                              //           dateTime: post['date'].toString(),
-                              //         ),
-                              //   ),
-                              // );
-                            },
-                            child: Text(
-                              "View Post",
-                              style: TextStyle(color: black),
-                            ),
-                          ),
 
                           TextButton(
                             onPressed: () async {

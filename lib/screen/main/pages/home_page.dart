@@ -1,3 +1,4 @@
+import 'package:axion/screen/communities/community_detail_page.dart';
 import 'package:axion/screen/main/tab/my_communities.dart';
 import 'package:axion/screen/main/tab/my_feed.dart';
 import 'package:axion/screen/post/add_post.dart';
@@ -66,15 +67,30 @@ class _HomePageState extends State<HomePage> {
                     itemCount: posts.length,
                     itemBuilder: (context, index) {
                       var post = posts[index].data() as Map<String, dynamic>;
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          children: [
-                            CircleAvatar(
-                              backgroundImage: NetworkImage(post['photoURL']),
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (builder) => CommunityDetailPage(
+                                    communityId: post['uuid'],
+                                    communityName:
+                                        post['categoryName'] ?? "Community",
+                                  ),
                             ),
-                            Text(post['categoryName']),
-                          ],
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: NetworkImage(post['photoURL']),
+                              ),
+                              Text(post['categoryName']),
+                            ],
+                          ),
                         ),
                       );
                     },
