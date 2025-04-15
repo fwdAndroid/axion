@@ -134,6 +134,7 @@ class _AddPostState extends State<AddPost> {
                           'uuid': uuid,
                           'uid': FirebaseAuth.instance.currentUser!.uid,
                           'favorite': [],
+                          'comment': [],
                         });
 
                     setState(() {
