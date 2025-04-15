@@ -24,6 +24,26 @@ class Database {
     }
   }
 
+  Future<void> toggleLikeCommunity(
+    String postId,
+    List<dynamic> currentLikes,
+  ) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final postRef = FirebaseFirestore.instance
+        .collection('communitiesPost')
+        .doc(postId);
+
+    if (currentLikes.contains(uid)) {
+      await postRef.update({
+        'favorite': FieldValue.arrayRemove([uid]),
+      });
+    } else {
+      await postRef.update({
+        'favorite': FieldValue.arrayUnion([uid]),
+      });
+    }
+  }
+
   // Create or get chat document
   Future<String?> createChatDocument({
     required String currentUserId,
