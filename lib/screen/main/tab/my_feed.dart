@@ -1,4 +1,5 @@
 import 'package:axion/screen/main/chat/chat_detail_page.dart';
+import 'package:axion/screen/main/comment/comment.dart';
 import 'package:axion/screen/post/view_post.dart';
 import 'package:axion/services/database.dart';
 import 'package:axion/utils/colors.dart';
@@ -279,6 +280,23 @@ class _MyFeedState extends State<MyFeed> {
                               }
                             },
                             child: Text("Chat", style: TextStyle(color: black)),
+                          ),
+
+                          TextButton(
+                            onPressed: () async {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) =>
+                                          ViewComment(postId: post['uuid']),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              "Comments",
+                              style: TextStyle(color: black),
+                            ),
                           ),
                         ],
                       ),
