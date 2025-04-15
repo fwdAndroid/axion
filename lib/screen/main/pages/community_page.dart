@@ -1,3 +1,4 @@
+import 'package:axion/screen/communities/community_detail_page.dart';
 import 'package:axion/utils/messagebar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -98,77 +99,93 @@ class _CommunityPageState extends State<CommunityPage> {
                 builder: (context, joinSnapshot) {
                   bool isJoined = joinSnapshot.data ?? false;
 
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child:
-                            community['photoURL'] != null &&
-                                    community['photoURL'].isNotEmpty
-                                ? Image.network(
-                                  community['photoURL'],
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                )
-                                : Container(
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  color: Colors.grey.shade300,
-                                  child: Icon(
-                                    Icons.image_not_supported,
-                                    size: 50,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                      ),
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 12,
-                        ),
-                        color: Colors.black.withOpacity(0.5),
-                        child: Text(
-                          community['categoryName'] ?? "Community",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 8,
-                        left: 8,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (isJoined) {
-                              await leaveGroup(communityId);
-                              showMessageBar("You Leave the Group", context);
-                            } else {
-                              await joinGroup(communityId);
-                              showMessageBar("You Joined the Group", context);
-                            }
-                            setState(() {});
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) {
+                            return CommunityDetailPage(
+                              communityId: communityId,
+                              communityName:
+                                  community['categoryName'] ?? "Community",
+                            );
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                isJoined ? Colors.red : Colors.blue,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                        ),
+                      );
+                    },
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child:
+                              community['photoURL'] != null &&
+                                      community['photoURL'].isNotEmpty
+                                  ? Image.network(
+                                    community['photoURL'],
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                  )
+                                  : Container(
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    color: Colors.grey.shade300,
+                                    child: Icon(
+                                      Icons.image_not_supported,
+                                      size: 50,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                        ),
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            vertical: 8,
+                            horizontal: 12,
+                          ),
+                          color: Colors.black.withOpacity(0.5),
+                          child: Text(
+                            community['categoryName'] ?? "Community",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          child: Text(
-                            isJoined ? "Leave Group" : "Join Group",
-                            style: TextStyle(color: Colors.white),
+                        ),
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (isJoined) {
+                                await leaveGroup(communityId);
+                                showMessageBar("You Leave the Group", context);
+                              } else {
+                                await joinGroup(communityId);
+                                showMessageBar("You Joined the Group", context);
+                              }
+                              setState(() {});
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  isJoined ? Colors.red : Colors.blue,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                            ),
+                            child: Text(
+                              isJoined ? "Leave Group" : "Join Group",
+                              style: TextStyle(color: Colors.white),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               );

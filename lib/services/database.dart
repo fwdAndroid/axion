@@ -103,36 +103,35 @@ class Database {
     });
   }
 
-  Future<void> sendJoinRequest(String communityId) async {
-    String userId = FirebaseAuth.instance.currentUser!.uid;
+  // Check if the user is already part of the group
+  Future<bool> isUserJoined(String communityId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
 
-    try {
-      await FirebaseFirestore.instance
-          .collection('communities')
-          .doc(communityId)
-          .collection('joinRequests')
-          .doc(userId)
-          .set({
-            'userId': userId,
-            'status': 'pending',
-            'requestedAt': FieldValue.serverTimestamp(),
-          });
-    } catch (e) {
-      print("Error sending request: $e");
-    }
+    final doc =
+        await _firestore.collection('communities').doc(communityId).get();
+    List members = doc['members'] ?? [];
+
+    return members.contains(uid);
   }
 
-  // Function to check if user has already sent a join request
-  Future<bool> hasSentRequest(String communityId) async {
-    String userId = FirebaseAuth.instance.currentUser!.uid;
-    var doc =
-        await FirebaseFirestore.instance
-            .collection('communities')
-            .doc(communityId)
-            .collection('joinRequests')
-            .doc(userId)
-            .get();
+  // Join a group by adding the user to the members list
+  Future<void> joinGroup(String communityId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
 
-    return doc.exists;
+    await _firestore.collection('communities').doc(communityId).update({
+      'members': FieldValue.arrayUnion([uid]),
+    });
+  }
+
+  // Leave a group by removing the user from the members list
+  Future<void> leaveGroup(String communityId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    await _firestore.collection('communities').doc(communityId).update({
+      'members': FieldValue.arrayRemove([uid]),
+    });
   }
 }
