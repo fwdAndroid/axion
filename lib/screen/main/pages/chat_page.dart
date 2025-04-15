@@ -14,6 +14,15 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,14 +30,39 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         leading: Image.asset("assets/log.png", height: 100),
         backgroundColor: mainColor,
+        title:
+            _isSearching
+                ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: TextStyle(color: colorWhite),
+                  decoration: InputDecoration(
+                    hintText: 'Search chats...',
+                    hintStyle: TextStyle(color: colorWhite.withOpacity(0.7)),
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value.toLowerCase();
+                    });
+                  },
+                )
+                : null,
         actions: [
           IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.search, color: colorWhite),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: Icon(Icons.add, color: colorWhite),
+            onPressed: () {
+              setState(() {
+                _isSearching = !_isSearching;
+                if (!_isSearching) {
+                  _searchQuery = '';
+                  _searchController.clear();
+                }
+              });
+            },
+            icon: Icon(
+              _isSearching ? Icons.close : Icons.search,
+              color: colorWhite,
+            ),
           ),
         ],
       ),
@@ -62,15 +96,56 @@ class _ChatPageState extends State<ChatPage> {
 
           final chats = snapshot.data!.docs;
 
+          // Filter chats based on search query
+          final filteredChats =
+              _searchQuery.isEmpty
+                  ? chats
+                  : chats.where((chatDoc) {
+                    final chat = chatDoc.data() as Map<String, dynamic>;
+                    final participants = chat['participants'] as List<dynamic>;
+                    final participantNames =
+                        chat['participantNames'] as Map<String, dynamic>;
+
+                    // Get the other participant's info
+                    final friendId =
+                        participants.firstWhere(
+                              (id) => id != currentUserId,
+                              orElse: () => currentUserId,
+                            )
+                            as String;
+
+                    final friendName = participantNames[friendId] ?? 'Unknown';
+                    return friendName.toLowerCase().contains(_searchQuery);
+                  }).toList();
+
+          if (filteredChats.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.search_off, size: 60, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    "No matching chats found",
+                    style: GoogleFonts.roboto(color: Colors.grey, fontSize: 18),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return ListView.builder(
-            itemCount: chats.length,
+            itemCount: filteredChats.length,
             itemBuilder: (context, index) {
-              final chat = chats[index].data() as Map<String, dynamic>;
+              final chat = filteredChats[index].data() as Map<String, dynamic>;
               final participants = chat['participants'] as List<dynamic>;
               final participantNames =
                   chat['participantNames'] as Map<String, dynamic>;
               final participantPhotos =
                   chat['participantPhotos'] as Map<String, dynamic>;
+              final lastMessage = chat['lastMessage'] ?? 'No messages yet';
+              final lastMessageSender = chat['lastMessageSenderId'];
+              final isCurrentUserSender = lastMessageSender == currentUserId;
 
               // Get the other participant's info
               final friendId =
@@ -92,7 +167,7 @@ class _ChatPageState extends State<ChatPage> {
                           (context) => ChatDetailPage(
                             currentUserId:
                                 FirebaseAuth.instance.currentUser!.uid,
-                            chatId: chats[index].id,
+                            chatId: filteredChats[index].id,
                             friendId: friendId,
                             friendName: friendName,
                             friendImage: friendImage,
@@ -141,15 +216,30 @@ class _ChatPageState extends State<ChatPage> {
                     fontSize: 16,
                   ),
                 ),
-                subtitle: Text(
-                  chat['lastMessage']?.toString() ?? 'No messages yet',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
-                    color: subTitleColor,
-                    fontWeight: FontWeight.normal,
-                    fontSize: 12,
-                  ),
+                subtitle: Row(
+                  children: [
+                    if (isCurrentUserSender)
+                      Text(
+                        'You: ',
+                        style: GoogleFonts.roboto(
+                          color: subTitleColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        lastMessage.toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.roboto(
+                          color: subTitleColor,
+                          fontWeight: FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
