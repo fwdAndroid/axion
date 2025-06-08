@@ -46,7 +46,6 @@ class _MyFeedState extends State<MyFeed> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("My Feed")),
       body: StreamBuilder<QuerySnapshot>(
         stream:
             FirebaseFirestore.instance

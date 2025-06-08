@@ -33,6 +33,8 @@ class _AddPostState extends State<AddPost> {
   File? _videoFile;
   String _mediaType = '';
   bool isLoading = false;
+  bool _isVideoInitializing = false;
+  bool _showPlayButtonOverlay = true; // Track play button visibility
   var uuid = Uuid().v4();
 
   @override
@@ -43,30 +45,64 @@ class _AddPostState extends State<AddPost> {
   }
 
   Future<void> _initializeVideoPlayer(File videoFile) async {
-    _videoController?.dispose();
-    _chewieController?.dispose();
+    setState(() => _isVideoInitializing = true);
 
-    _videoController = VideoPlayerController.file(videoFile);
-    await _videoController!.initialize();
+    try {
+      // Dispose existing controllers
+      _videoController?.dispose();
+      _chewieController?.dispose();
 
-    _chewieController = ChewieController(
-      errorBuilder: (context, errorMessage) {
-        return Center(
-          child: Text(
-            'Unsupported video format',
-            style: TextStyle(color: Colors.white),
-          ),
-        );
-      },
-      deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
-      videoPlayerController: _videoController!,
-      autoPlay: false,
-      looping: false,
-      showControls: true,
-      aspectRatio: _videoController!.value.aspectRatio,
-    );
+      // Create new controller
+      _videoController = VideoPlayerController.file(videoFile);
+      await _videoController!.initialize();
 
-    setState(() {});
+      // Setup listeners to update play button visibility
+      _videoController!.addListener(() {
+        if (_videoController!.value.isPlaying) {
+          setState(() => _showPlayButtonOverlay = false);
+        } else {
+          setState(() => _showPlayButtonOverlay = true);
+        }
+      });
+
+      // Create Chewie controller
+      _chewieController = ChewieController(
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Text(
+              'Unsupported video format',
+              style: TextStyle(color: Colors.white),
+            ),
+          );
+        },
+        deviceOrientationsAfterFullScreen: [DeviceOrientation.portraitUp],
+        videoPlayerController: _videoController!,
+        autoPlay: false,
+        looping: false,
+        showControls: true,
+        aspectRatio: _videoController!.value.aspectRatio,
+      );
+    } catch (e) {
+      showMessageBar("Error loading video: ${e.toString()}", context);
+      setState(() {
+        _mediaType = '';
+        _videoFile = null;
+      });
+    } finally {
+      setState(() => _isVideoInitializing = false);
+    }
+  }
+
+  // Play/pause video with play button
+  void _toggleVideoPlayback() {
+    if (_videoController == null) return;
+
+    if (_videoController!.value.isPlaying) {
+      _videoController!.pause();
+    } else {
+      _videoController!.play();
+      setState(() => _showPlayButtonOverlay = false);
+    }
   }
 
   @override
@@ -98,31 +134,69 @@ class _AddPostState extends State<AddPost> {
                       : Stack(
                         alignment: Alignment.center,
                         children: [
-                          if (_mediaType == 'image') Image.memory(_image!),
+                          // Image preview
+                          if (_mediaType == 'image')
+                            Image.memory(_image!, fit: BoxFit.cover),
+
+                          // Video preview
                           if (_mediaType == 'video')
-                            _chewieController != null &&
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Video player or placeholder
+                                if (_chewieController != null &&
                                     _chewieController!
                                         .videoPlayerController
                                         .value
-                                        .isInitialized
-                                ? Chewie(controller: _chewieController!)
-                                : const CircularProgressIndicator(),
+                                        .isInitialized)
+                                  Chewie(controller: _chewieController!)
+                                else
+                                  Container(
+                                    color: Colors.black,
+                                    child: Center(
+                                      child:
+                                          _isVideoInitializing
+                                              ? const CircularProgressIndicator()
+                                              : const Icon(
+                                                Icons.videocam,
+                                                size: 50,
+                                                color: Colors.white54,
+                                              ),
+                                    ),
+                                  ),
+
+                                // Play button overlay
+                                if (_showPlayButtonOverlay &&
+                                    _chewieController != null &&
+                                    _chewieController!
+                                        .videoPlayerController
+                                        .value
+                                        .isInitialized)
+                                  GestureDetector(
+                                    onTap: _toggleVideoPlayback,
+                                    child: Container(
+                                      color: Colors.transparent,
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.play_circle_filled,
+                                          size: 50,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                          // Edit button
                           Positioned(
                             right: 10,
                             top: 10,
                             child: IconButton(
-                              icon: const Icon(Icons.edit),
+                              icon: const Icon(Icons.edit, color: Colors.white),
                               onPressed: selectMedia,
                             ),
                           ),
-                          if (_mediaType == 'video' &&
-                              (_chewieController == null ||
-                                  !_chewieController!.isPlaying))
-                            const Icon(
-                              Icons.play_circle_filled,
-                              size: 50,
-                              color: Colors.white,
-                            ),
                         ],
                       ),
             ),
@@ -177,7 +251,6 @@ class _AddPostState extends State<AddPost> {
                 ),
               ),
             ),
-            // const Spacer(),
             isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : Padding(
@@ -272,6 +345,8 @@ class _AddPostState extends State<AddPost> {
                       _videoFile = null;
                       _chewieController?.dispose();
                       _videoController?.dispose();
+                      _chewieController = null;
+                      _videoController = null;
                     });
                   }
                 },
@@ -283,14 +358,23 @@ class _AddPostState extends State<AddPost> {
                   Navigator.pop(context);
                   final videoXFile = await ImagePicker().pickVideo(
                     source: ImageSource.gallery,
+                    maxDuration: const Duration(minutes: 5),
                   );
                   if (videoXFile != null) {
                     final videoFile = File(videoXFile.path);
-                    await _initializeVideoPlayer(videoFile);
+
                     setState(() {
                       _mediaType = 'video';
                       _videoFile = videoFile;
+                      _image = null;
+                      _showPlayButtonOverlay = true;
+                      _chewieController?.dispose();
+                      _videoController?.dispose();
+                      _chewieController = null;
+                      _videoController = null;
                     });
+
+                    await _initializeVideoPlayer(videoFile);
                   }
                 },
               ),
