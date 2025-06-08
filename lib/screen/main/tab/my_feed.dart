@@ -29,6 +29,7 @@ class _MyFeedState extends State<MyFeed> {
   final Map<String, VideoPlayerController> _videoControllers = {};
   final Map<String, ChewieController> _chewieControllers = {};
   final Map<String, Future<void>> _videoInitializationFutures = {};
+  final Map<String, TextEditingController> _commentControllers = {};
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _MyFeedState extends State<MyFeed> {
     _videoControllers.forEach((key, controller) {
       controller.dispose();
     });
+
     super.dispose();
   }
 
@@ -254,7 +256,10 @@ class _MyFeedState extends State<MyFeed> {
 
               String mediaUrl = post['mediaUrl'] ?? '';
               String mediaType = post['mediaType'] ?? 'image';
-
+              // Ensure a TextEditingController exists for this postId
+              if (!_commentControllers.containsKey(postId)) {
+                _commentControllers[postId] = TextEditingController();
+              }
               return Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: GestureDetector(
@@ -534,37 +539,122 @@ class _MyFeedState extends State<MyFeed> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: CircleAvatar(
-                                backgroundImage: NetworkImage(
-                                  post['userImage'] ?? '',
+                        // Display latest comment here
+                        StreamBuilder<QuerySnapshot>(
+                          stream:
+                              FirebaseFirestore.instance
+                                  .collection('feeds')
+                                  .doc(postId)
+                                  .collection('comments')
+                                  .orderBy('timestamp', descending: true)
+                                  .limit(1)
+                                  .snapshots(),
+                          builder: (context, commentSnapshot) {
+                            if (commentSnapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const SizedBox.shrink(); // Or a small loading indicator
+                            }
+                            if (commentSnapshot.hasData &&
+                                commentSnapshot.data!.docs.isNotEmpty) {
+                              var latestComment =
+                                  commentSnapshot.data!.docs.first.data()
+                                      as Map<String, dynamic>;
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 8.0,
+                                  right: 8.0,
+                                  bottom: 8.0,
                                 ),
-                                radius: 20,
-                              ),
-                            ),
-                            Expanded(
-                              child: TextFormField(
-                                decoration: const InputDecoration(
-                                  hintText: 'Add a comment...',
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.only(left: 10),
-                                ),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder:
-                                          (context) =>
-                                              ViewComment(postId: postId),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundImage: NetworkImage(
+                                        latestComment['userImage'] ??
+                                            'https://via.placeholder.com/150', // Fallback
+                                      ),
+                                      radius: 12, // Smaller avatar for comment
                                     ),
-                                  );
-                                },
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            latestComment['userName'] ?? 'User',
+                                            style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          Text(
+                                            latestComment['text'] ?? '',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                            ),
+                                            maxLines: 2, // Limit comment lines
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink(); // No comments yet
+                          },
+                        ),
+                        // Comment input TextFormField
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 8.0,
+                            right: 8.0,
+                            bottom: 8.0,
+                          ),
+                          child: Row(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: CircleAvatar(
+                                  backgroundImage: NetworkImage(
+                                    currentUserImage ??
+                                        'https://via.placeholder.com/150', // Fallback
+                                  ),
+                                  radius: 20,
+                                ),
                               ),
-                            ),
-                          ],
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentControllers[postId],
+                                  decoration: InputDecoration(
+                                    hintText: 'Add a comment...',
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 0,
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: const Icon(
+                                        Icons.send,
+                                        color: Colors.blueAccent,
+                                      ),
+                                      onPressed: () {
+                                        _postComment(
+                                          postId,
+                                          _commentControllers[postId]!.text,
+                                        ); // Send comment
+                                      },
+                                    ),
+                                  ),
+                                  onSubmitted: (text) {
+                                    _postComment(postId, text); // Send on enter
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -576,5 +666,45 @@ class _MyFeedState extends State<MyFeed> {
         },
       ),
     );
+  }
+
+  Future<void> _postComment(String postId, String commentText) async {
+    if (commentText.trim().isEmpty) return; // Don't post empty comments
+
+    if (currentUserName == null || currentUserImage == null) {
+      // Potentially show a message that user details are not loaded
+      print("User details not loaded, cannot post comment.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Please wait, user details are loading."),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('feeds')
+          .doc(postId)
+          .collection('comments')
+          .add({
+            'text': commentText.trim(),
+            'timestamp': Timestamp.now(),
+            'uid': currentUserId,
+            'userName': currentUserName,
+            'userImage': currentUserImage,
+          });
+      _commentControllers[postId]
+          ?.clear(); // Clear the text field after sending
+    } catch (e) {
+      print("Error posting comment: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to post comment: $e")));
+      }
+    }
   }
 }
