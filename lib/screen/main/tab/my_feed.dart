@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:readmore/readmore.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:video_player/video_player.dart'; // Import video_player
+import 'package:chewie/chewie.dart'; // Import chewie
 
 class MyFeed extends StatefulWidget {
   const MyFeed({Key? key}) : super(key: key);
@@ -23,10 +25,27 @@ class _MyFeedState extends State<MyFeed> {
   String? currentUserImage;
   final Database _database = Database();
 
+  // Store video controllers to manage their lifecycle
+  final Map<String, VideoPlayerController> _videoControllers = {};
+  final Map<String, ChewieController> _chewieControllers = {};
+  final Map<String, Future<void>> _videoInitializationFutures = {};
+
   @override
   void initState() {
     super.initState();
     _fetchCurrentUserDetails();
+  }
+
+  @override
+  void dispose() {
+    // Dispose all video controllers when the widget is disposed
+    _chewieControllers.forEach((key, controller) {
+      controller.dispose();
+    });
+    _videoControllers.forEach((key, controller) {
+      controller.dispose();
+    });
+    super.dispose();
   }
 
   Future<void> _fetchCurrentUserDetails() async {
@@ -41,6 +60,158 @@ class _MyFeedState extends State<MyFeed> {
         currentUserImage = userDoc['image'];
       });
     }
+  }
+
+  // Helper function to build media widget (Image or Video)
+  Widget _buildMediaWidget(String mediaUrl, String mediaType, String postId) {
+    if (mediaUrl.isEmpty) {
+      return const SizedBox.shrink(); // No media to display
+    }
+
+    if (mediaType == "image") {
+      // Dispose video controllers if media type changes to image for this post
+      if (_videoControllers.containsKey(postId)) {
+        _videoControllers[postId]?.dispose();
+        _chewieControllers[postId]?.dispose();
+        _videoControllers.remove(postId);
+        _chewieControllers.remove(postId);
+        _videoInitializationFutures.remove(postId);
+      }
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          mediaUrl,
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder:
+              (_, __, ___) => const Icon(
+                Icons.image_not_supported,
+                size: 100,
+                color: Colors.grey,
+              ),
+        ),
+      );
+    } else if (mediaType == "video") {
+      if (!_videoControllers.containsKey(postId)) {
+        // Initialize video player and chewie controller if not already initialized
+        final videoController = VideoPlayerController.networkUrl(
+          Uri.parse(mediaUrl),
+        );
+        final initFuture = videoController
+            .initialize()
+            .then((_) {
+              // IMPORTANT: Only create ChewieController if video is initialized and has dimensions
+              if (videoController.value.isInitialized &&
+                  videoController.value.size != Size.zero) {
+                final chewieController = ChewieController(
+                  videoPlayerController: videoController,
+                  autoPlay: false, // Don't autoplay in feed
+                  looping: false,
+                  aspectRatio: videoController.value.aspectRatio,
+                  errorBuilder: (context, errorMessage) {
+                    return Center(
+                      child: Text(
+                        errorMessage,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    );
+                  },
+                );
+                _videoControllers[postId] = videoController;
+                _chewieControllers[postId] = chewieController;
+              } else {
+                // Handle cases where initialization succeeded but dimensions are not ready
+                // This can indicate a corrupt video or temporary issue.
+                print(
+                  "Video initialized but no size reported for post $postId. Disposing controllers.",
+                );
+                // Clean up resources if the video isn't fully ready
+                videoController.dispose();
+                _videoControllers.remove(postId);
+                _chewieControllers.remove(postId);
+                _videoInitializationFutures.remove(
+                  postId,
+                ); // Remove the future as well
+              }
+              setState(
+                () {},
+              ); // Rebuild to display video once initialized or if error/no size
+            })
+            .catchError((e) {
+              print("Error initializing video for post $postId: $e");
+              // Clean up resources on error
+              _videoControllers[postId]?.dispose();
+              _chewieControllers[postId]?.dispose();
+              _videoControllers.remove(postId);
+              _chewieControllers.remove(postId);
+              _videoInitializationFutures.remove(postId);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error loading video for a post: $e")),
+                );
+              }
+              setState(() {}); // Rebuild to show error placeholder
+            });
+        _videoInitializationFutures[postId] = initFuture;
+      }
+
+      // Use a FutureBuilder to handle the asynchronous initialization
+      return FutureBuilder(
+        future: _videoInitializationFutures[postId],
+        builder: (context, snapshot) {
+          // Check if both ChewieController exists AND video value is initialized and has size
+          final isVideoInitializedAndReady =
+              _chewieControllers.containsKey(postId) &&
+              _chewieControllers[postId]!
+                  .videoPlayerController
+                  .value
+                  .isInitialized &&
+              _chewieControllers[postId]!.videoPlayerController.value.size !=
+                  Size.zero;
+
+          if (snapshot.connectionState == ConnectionState.done &&
+              isVideoInitializedAndReady) {
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              // Wrap Chewie in an AspectRatio widget.
+              // While Chewie itself uses aspectRatio, explicitly providing it here
+              // ensures a defined size for the RenderBox even if there's a transient
+              // issue with Chewie's internal sizing or the video controller's initial value.
+              child: AspectRatio(
+                aspectRatio:
+                    _chewieControllers[postId]!
+                        .videoPlayerController
+                        .value
+                        .aspectRatio,
+                child: Chewie(controller: _chewieControllers[postId]!),
+              ),
+            );
+          } else if (snapshot.connectionState == ConnectionState.waiting) {
+            return Container(
+              height: 180,
+              width: double.infinity,
+              color: Colors.black,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            );
+          } else {
+            // This block handles errors, uninitialized state, or videos without a size
+            return Container(
+              height: 180,
+              width: double.infinity,
+              color: Colors.grey.shade300,
+              child: const Center(
+                child: Icon(Icons.videocam_off, size: 50, color: Colors.grey),
+              ),
+            );
+          }
+        },
+      );
+    }
+    return const SizedBox.shrink(); // Fallback for unknown media type
   }
 
   @override
@@ -76,9 +247,13 @@ class _MyFeedState extends State<MyFeed> {
             itemCount: posts.length,
             itemBuilder: (context, index) {
               var post = posts[index].data() as Map<String, dynamic>;
+              String postId = posts[index].id;
               List<dynamic> likes = post['favorite'] ?? [];
               bool isLiked = likes.contains(currentUserId);
               int likeCount = likes.length;
+
+              String mediaUrl = post['mediaUrl'] ?? '';
+              String mediaType = post['mediaType'] ?? 'image';
 
               return Padding(
                 padding: const EdgeInsets.all(8.0),
@@ -90,10 +265,11 @@ class _MyFeedState extends State<MyFeed> {
                         builder:
                             (builder) => ViewPost(
                               description: post['description'],
-                              image: post['image'],
+                              image: mediaUrl,
                               titleName: post['titleName'],
                               uuid: post['uuid'],
-                              dateTime: post['date'].toString(),
+                              dateTime: post['date']?.toDate().toString() ?? '',
+                              // mediaType: mediaType,
                             ),
                       ),
                     );
@@ -144,7 +320,6 @@ class _MyFeedState extends State<MyFeed> {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 10),
                         Padding(
                           padding: const EdgeInsets.only(
@@ -161,7 +336,6 @@ class _MyFeedState extends State<MyFeed> {
                             ),
                           ),
                         ),
-
                         Padding(
                           padding: const EdgeInsets.only(left: 8.0, right: 8),
                           child: ReadMoreText(
@@ -175,21 +349,13 @@ class _MyFeedState extends State<MyFeed> {
                           ),
                         ),
 
-                        if (post['image'] != null &&
-                            post['image'].toString().isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              post['image'],
-                              height: 180,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder:
-                                  (_, __, ___) => const Icon(
-                                    Icons.image_not_supported,
-                                    size: 100,
-                                    color: Colors.grey,
-                                  ),
+                        if (mediaUrl.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: _buildMediaWidget(
+                              mediaUrl,
+                              mediaType,
+                              postId,
                             ),
                           ),
 
@@ -202,7 +368,7 @@ class _MyFeedState extends State<MyFeed> {
                             children: [
                               GestureDetector(
                                 onTap: () {
-                                  _database.toggleLike(post['uuid'], likes);
+                                  _database.toggleLike(postId, likes);
                                 },
                                 child: Column(
                                   children: [
@@ -220,7 +386,6 @@ class _MyFeedState extends State<MyFeed> {
                                   ],
                                 ),
                               ),
-
                               GestureDetector(
                                 onTap: () {
                                   Navigator.push(
@@ -228,18 +393,19 @@ class _MyFeedState extends State<MyFeed> {
                                     MaterialPageRoute(
                                       builder:
                                           (context) =>
-                                              ViewComment(postId: post['uuid']),
+                                              ViewComment(postId: postId),
                                     ),
                                   );
                                 },
                                 child: Column(
                                   children: [
-                                    Icon(Icons.chat_bubble, color: Colors.grey),
-                                    Text(
+                                    const Icon(
+                                      Icons.chat_bubble,
+                                      color: Colors.grey,
+                                    ),
+                                    const Text(
                                       'Comment',
-                                      style: const TextStyle(
-                                        color: Colors.black,
-                                      ),
+                                      style: TextStyle(color: Colors.black),
                                     ),
                                   ],
                                 ),
@@ -247,7 +413,6 @@ class _MyFeedState extends State<MyFeed> {
                               GestureDetector(
                                 onTap: () async {
                                   try {
-                                    // Show loading indicator
                                     showDialog(
                                       context: context,
                                       barrierDismissible: false,
@@ -257,14 +422,12 @@ class _MyFeedState extends State<MyFeed> {
                                           ),
                                     );
 
-                                    // Get friend data
                                     final friendDoc =
                                         await FirebaseFirestore.instance
                                             .collection('users')
                                             .doc(post['uid'])
                                             .get();
 
-                                    // Validate data
                                     if (!friendDoc.exists) {
                                       throw Exception(
                                         'Friend profile not found',
@@ -276,7 +439,6 @@ class _MyFeedState extends State<MyFeed> {
                                       );
                                     }
 
-                                    // Create chat
                                     final chatId = await _database
                                         .createChatDocument(
                                           currentUserId: currentUserId,
@@ -289,7 +451,6 @@ class _MyFeedState extends State<MyFeed> {
                                           friendPhoto: friendDoc['image'],
                                         );
 
-                                    // Close loading dialog
                                     if (!mounted) return;
                                     Navigator.of(context).pop();
 
@@ -297,7 +458,6 @@ class _MyFeedState extends State<MyFeed> {
                                       throw Exception('Failed to create chat');
                                     }
 
-                                    // Open chat screen
                                     if (!mounted) return;
                                     Navigator.push(
                                       context,
@@ -315,10 +475,7 @@ class _MyFeedState extends State<MyFeed> {
                                       ),
                                     );
                                   } catch (e) {
-                                    // Close loading dialog if still open
                                     if (mounted) Navigator.of(context).pop();
-
-                                    // Show error message
                                     if (mounted) {
                                       ScaffoldMessenger.of(
                                         context,
@@ -336,29 +493,39 @@ class _MyFeedState extends State<MyFeed> {
                                 },
                                 child: Column(
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.chat_rounded,
                                       color: Colors.grey,
                                     ),
-                                    Text(
+                                    const Text(
                                       'Chat',
-                                      style: const TextStyle(
-                                        color: Colors.black,
-                                      ),
+                                      style: TextStyle(color: Colors.black),
                                     ),
                                   ],
                                 ),
                               ),
                               GestureDetector(
-                                onTap: () async {},
+                                onTap: () async {
+                                  String shareText =
+                                      "${post['titleName'] ?? 'Untitled Post'}\n\n"
+                                      "${post['description'] ?? 'No description'}\n";
+
+                                  if (mediaUrl.isNotEmpty) {
+                                    shareText +=
+                                        "\nCheck out this media: $mediaUrl";
+                                  }
+
+                                  await Share.share(
+                                    shareText,
+                                    subject: post['titleName'] ?? "Social Post",
+                                  );
+                                },
                                 child: Column(
                                   children: [
-                                    Icon(Icons.share, color: Colors.grey),
-                                    Text(
+                                    const Icon(Icons.share, color: Colors.grey),
+                                    const Text(
                                       'Share',
-                                      style: const TextStyle(
-                                        color: Colors.black,
-                                      ),
+                                      style: TextStyle(color: Colors.black),
                                     ),
                                   ],
                                 ),
@@ -380,13 +547,21 @@ class _MyFeedState extends State<MyFeed> {
                             ),
                             Expanded(
                               child: TextFormField(
-                                decoration: InputDecoration(
+                                decoration: const InputDecoration(
                                   hintText: 'Add a comment...',
                                   border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.only(
-                                    left: 10,
-                                  ),
+                                  contentPadding: EdgeInsets.only(left: 10),
                                 ),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder:
+                                          (context) =>
+                                              ViewComment(postId: postId),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],
