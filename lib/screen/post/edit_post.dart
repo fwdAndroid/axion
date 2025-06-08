@@ -4,12 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart'; // Import video_player
 
 class EditPost extends StatefulWidget {
   final String description;
   final String uuid;
-  final String photo;
+  final String photo; // This will now represent mediaUrl (image or video)
   final String title;
+  final String mediaType; // "image" or "video"
 
   EditPost({
     super.key,
@@ -17,6 +19,7 @@ class EditPost extends StatefulWidget {
     required this.photo,
     required this.title,
     required this.uuid,
+    required this.mediaType,
   });
 
   @override
@@ -26,46 +29,118 @@ class EditPost extends StatefulWidget {
 class _EditPostState extends State<EditPost> {
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
-  File? _newImage;
+  File? _newMedia; // Can be an image or video file
+  String? _currentMediaType; // To track if new media is image or video
   bool _isUpdating = false; // Tracks update state
+
+  VideoPlayerController? _videoPlayerController;
+  Future<void>? _initializeVideoPlayerFuture;
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.title);
     _descriptionController = TextEditingController(text: widget.description);
+    _currentMediaType = widget.mediaType; // Initialize with existing media type
+
+    if (widget.photo.isNotEmpty && widget.mediaType == "video") {
+      _videoPlayerController = VideoPlayerController.networkUrl(
+        Uri.parse(widget.photo),
+      );
+      _initializeVideoPlayerFuture = _videoPlayerController!.initialize().then((
+        _,
+      ) {
+        setState(() {}); // Ensure the UI rebuilds once the video is initialized
+      });
+    }
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _videoPlayerController?.dispose(); // Dispose video controller
     super.dispose();
   }
 
-  // Function to pick an image
-  Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+  // Function to pick an image or video
+  Future<void> _pickMedia() async {
+    final ImagePicker picker = ImagePicker();
+    // Show a dialog to choose between image and video
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Select Media Type"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.image),
+                title: const Text("Pick Image"),
+                onTap: () async {
+                  Navigator.pop(context); // Close the dialog
+                  final pickedFile = await picker.pickImage(
+                    source: ImageSource.gallery,
+                  );
+                  if (pickedFile != null) {
+                    setState(() {
+                      _newMedia = File(pickedFile.path);
+                      _currentMediaType = "image";
+                      _videoPlayerController
+                          ?.dispose(); // Dispose old video controller if any
+                      _videoPlayerController = null;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.video_library),
+                title: const Text("Pick Video"),
+                onTap: () async {
+                  Navigator.pop(context); // Close the dialog
+                  final pickedFile = await picker.pickVideo(
+                    source: ImageSource.gallery,
+                  );
+                  if (pickedFile != null) {
+                    setState(() {
+                      _newMedia = File(pickedFile.path);
+                      _currentMediaType = "video";
+                      _videoPlayerController
+                          ?.dispose(); // Dispose old video controller if any
+                      _videoPlayerController = VideoPlayerController.file(
+                        _newMedia!,
+                      );
+                      _initializeVideoPlayerFuture = _videoPlayerController!
+                          .initialize()
+                          .then((_) {
+                            setState(
+                              () {},
+                            ); // Rebuild UI after video initialization
+                          });
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
-    if (pickedFile != null) {
-      setState(() {
-        _newImage = File(pickedFile.path);
-      });
-    }
   }
 
-  // Function to upload image to Firebase Storage
-  Future<String?> _uploadImage(File image) async {
+  // Function to upload media (image or video) to Firebase Storage
+  Future<String?> _uploadMedia(File mediaFile, String type) async {
     try {
+      String fileExtension = type == "image" ? "jpg" : "mp4";
       String fileName =
-          "posts/${widget.uuid}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+          "posts/${widget.uuid}_${DateTime.now().millisecondsSinceEpoch}.$fileExtension";
       Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
-      UploadTask uploadTask = storageRef.putFile(image);
+      UploadTask uploadTask = storageRef.putFile(mediaFile);
       TaskSnapshot snapshot = await uploadTask;
       return await snapshot.ref.getDownloadURL();
     } catch (e) {
-      print("Error uploading image: $e");
+      print("Error uploading media: $e");
       return null;
     }
   }
@@ -77,15 +152,17 @@ class _EditPostState extends State<EditPost> {
     });
 
     try {
-      String? imageUrl =
-          widget.photo.isNotEmpty
-              ? widget.photo
-              : null; // Keep old image if exists
-      if (_newImage != null) {
-        String? uploadedImageUrl = await _uploadImage(_newImage!);
-        if (uploadedImageUrl != null) {
-          imageUrl =
-              uploadedImageUrl; // Use new image URL if uploaded successfully
+      String? mediaUrl = widget.photo.isNotEmpty ? widget.photo : null;
+      String updatedMediaType = widget.mediaType;
+
+      if (_newMedia != null) {
+        String? uploadedMediaUrl = await _uploadMedia(
+          _newMedia!,
+          _currentMediaType!,
+        );
+        if (uploadedMediaUrl != null) {
+          mediaUrl = uploadedMediaUrl;
+          updatedMediaType = _currentMediaType!;
         }
       }
 
@@ -95,14 +172,13 @@ class _EditPostState extends State<EditPost> {
           .update({
             'titleName': _titleController.text,
             'description': _descriptionController.text,
-            'image':
-                imageUrl ??
-                "", // If no image is available, store an empty string
+            'mediaUrl': mediaUrl ?? "", // 'image' field now stores media URL
+            'mediaType': updatedMediaType, // Update mediaType
           });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Post updated successfully")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Post updated successfully")),
+      );
       Navigator.pop(context); // Go back after updating
     } catch (e) {
       ScaffoldMessenger.of(
@@ -118,52 +194,119 @@ class _EditPostState extends State<EditPost> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Edit Post")),
+      appBar: AppBar(title: const Text("Edit Post")),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             GestureDetector(
-              onTap: _pickImage,
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey.shade300,
-                backgroundImage:
-                    _newImage != null
-                        ? FileImage(_newImage!) as ImageProvider
-                        : (widget.photo.isNotEmpty
-                            ? NetworkImage(widget.photo)
-                            : null),
-                child:
-                    _newImage == null && widget.photo.isEmpty
-                        ? Icon(
-                          Icons.image_not_supported,
-                          size: 50,
-                          color: Colors.grey,
-                        )
-                        : null,
+              onTap: _pickMedia, // Call the new _pickMedia function
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(75),
+                  border: Border.all(color: Colors.grey, width: 1),
+                ),
+                child: ClipOval(
+                  child:
+                      _newMedia != null
+                          ? _currentMediaType == "image"
+                              ? Image.file(_newMedia!, fit: BoxFit.cover)
+                              : FutureBuilder(
+                                future: _initializeVideoPlayerFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                          ConnectionState.done &&
+                                      _videoPlayerController != null) {
+                                    return AspectRatio(
+                                      aspectRatio:
+                                          _videoPlayerController!
+                                              .value
+                                              .aspectRatio,
+                                      child: VideoPlayer(
+                                        _videoPlayerController!,
+                                      ),
+                                    );
+                                  } else {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                },
+                              )
+                          : widget.photo.isNotEmpty
+                          ? widget.mediaType == "image"
+                              ? Image.network(widget.photo, fit: BoxFit.cover)
+                              : FutureBuilder(
+                                future: _initializeVideoPlayerFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                          ConnectionState.done &&
+                                      _videoPlayerController != null) {
+                                    return AspectRatio(
+                                      aspectRatio:
+                                          _videoPlayerController!
+                                              .value
+                                              .aspectRatio,
+                                      child: VideoPlayer(
+                                        _videoPlayerController!,
+                                      ),
+                                    );
+                                  } else {
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  }
+                                },
+                              )
+                          : Icon(
+                            Icons
+                                .add_a_photo, // Changed to a more general media icon
+                            size: 50,
+                            color: Colors.grey,
+                          ),
+                ),
               ),
             ),
-            SizedBox(height: 20),
+            if (_currentMediaType == "video" &&
+                _videoPlayerController != null &&
+                _videoPlayerController!.value.isInitialized)
+              IconButton(
+                icon: Icon(
+                  _videoPlayerController!.value.isPlaying
+                      ? Icons.pause
+                      : Icons.play_arrow,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _videoPlayerController!.value.isPlaying
+                        ? _videoPlayerController!.pause()
+                        : _videoPlayerController!.play();
+                  });
+                },
+              ),
+            const SizedBox(height: 20),
             TextField(
               controller: _titleController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: "Title",
                 border: OutlineInputBorder(),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             TextField(
               controller: _descriptionController,
               maxLines: 4,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: "Description",
                 border: OutlineInputBorder(),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             _isUpdating
-                ? CircularProgressIndicator() // Show loading indicator
+                ? const CircularProgressIndicator() // Show loading indicator
                 : SaveButton(onTap: _updatePost, title: "Update"),
           ],
         ),

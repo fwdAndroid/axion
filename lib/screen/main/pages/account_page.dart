@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:readmore/readmore.dart';
+import 'package:chewie/chewie.dart';
+import 'package:video_player/video_player.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
@@ -117,6 +119,8 @@ class _AccountPageState extends State<AccountPage> {
                       itemCount: posts.length,
                       itemBuilder: (context, index) {
                         var post = posts[index].data() as Map<String, dynamic>;
+                        String mediaUrl = post['mediaUrl'] ?? '';
+                        String mediaType = post['mediaType'] ?? '';
 
                         return Padding(
                           padding: const EdgeInsets.all(8.0),
@@ -124,36 +128,16 @@ class _AccountPageState extends State<AccountPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                post['image'] != null &&
-                                        post['image'].toString().isNotEmpty
-                                    ? Card(
-                                      child: Image.network(
-                                        post['image'],
-                                        height: 120,
-                                        width: double.infinity,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (
-                                          context,
-                                          error,
-                                          stackTrace,
-                                        ) {
-                                          return Center(
-                                            child: const Icon(
-                                              Icons.image_not_supported,
-                                              size: 200,
-                                              color: Colors.grey,
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    )
-                                    : Center(
-                                      child: const Icon(
-                                        Icons.image_not_supported,
-                                        size: 100,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
+                                // Media display based on type
+                                if (mediaUrl.isNotEmpty && mediaType.isNotEmpty)
+                                  _buildMediaDisplay(
+                                    context,
+                                    mediaUrl,
+                                    mediaType,
+                                  )
+                                else
+                                  _buildPlaceholder(),
+
                                 Padding(
                                   padding: const EdgeInsets.all(8.0),
                                   child: Row(
@@ -212,7 +196,8 @@ class _AccountPageState extends State<AccountPage> {
                                                   description:
                                                       post['description'],
                                                   title: post['titleName'],
-                                                  photo: post['image'],
+                                                  photo: post['mediaUrl'],
+                                                  mediaType: post['mediaType'],
                                                 ),
                                           ),
                                         );
@@ -235,9 +220,7 @@ class _AccountPageState extends State<AccountPage> {
                                               actions: [
                                                 TextButton(
                                                   onPressed: () {
-                                                    Navigator.pop(
-                                                      context,
-                                                    ); // Close the dialog
+                                                    Navigator.pop(context);
                                                   },
                                                   child: Text("Cancel"),
                                                 ),
@@ -247,14 +230,10 @@ class _AccountPageState extends State<AccountPage> {
                                                       await FirebaseFirestore
                                                           .instance
                                                           .collection('feeds')
-                                                          .doc(
-                                                            post['uuid'],
-                                                          ) // Ensure you have a unique ID for each post
+                                                          .doc(post['uuid'])
                                                           .delete();
 
-                                                      Navigator.pop(
-                                                        context,
-                                                      ); // Close the dialog
+                                                      Navigator.pop(context);
                                                       ScaffoldMessenger.of(
                                                         context,
                                                       ).showSnackBar(
@@ -307,6 +286,169 @@ class _AccountPageState extends State<AccountPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMediaDisplay(
+    BuildContext context,
+    String mediaUrl,
+    String mediaType,
+  ) {
+    if (mediaType == 'image') {
+      return Card(
+        child: Image.network(
+          mediaUrl,
+          height: 200,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Center(
+              child: Icon(
+                Icons.image_not_supported,
+                size: 50,
+                color: Colors.grey,
+              ),
+            );
+          },
+        ),
+      );
+    } else if (mediaType == 'video') {
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VideoDetailScreen(videoUrl: mediaUrl),
+            ),
+          );
+        },
+        child: Container(
+          height: 200,
+          width: MediaQuery.of(context).size.width,
+          color: Colors.black,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Video thumbnail with play button
+              Icon(Icons.play_circle_filled, size: 60, color: Colors.white70),
+              // Video type indicator
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    "VIDEO",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      height: 200,
+      color: Colors.grey[200],
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.media_bluetooth_off, size: 50, color: Colors.grey),
+            SizedBox(height: 8),
+            Text("No media available", style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class VideoDetailScreen extends StatefulWidget {
+  final String videoUrl;
+
+  const VideoDetailScreen({super.key, required this.videoUrl});
+
+  @override
+  _VideoDetailScreenState createState() => _VideoDetailScreenState();
+}
+
+class _VideoDetailScreenState extends State<VideoDetailScreen> {
+  late VideoPlayerController _videoPlayerController;
+  late ChewieController _chewieController;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    try {
+      _videoPlayerController = VideoPlayerController.network(widget.videoUrl);
+      await _videoPlayerController.initialize();
+
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController,
+        autoPlay: true,
+        looping: false,
+        aspectRatio: _videoPlayerController.value.aspectRatio,
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Text(
+              'Error loading video: $errorMessage',
+              style: TextStyle(color: Colors.white),
+            ),
+          );
+        },
+      );
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print("Error initializing video player: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoPlayerController.dispose();
+    _chewieController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child:
+            _isLoading
+                ? CircularProgressIndicator(color: Colors.white)
+                : Chewie(controller: _chewieController),
       ),
     );
   }
