@@ -184,6 +184,7 @@ class _MyCommunitiesState extends State<MyCommunities> {
                                 MaterialPageRoute(
                                   builder:
                                       (builder) => ViewPost(
+                                        mediaType: post['mediaType'],
                                         description: post['description'],
                                         image: post['image'],
                                         titleName: post['titleName'],

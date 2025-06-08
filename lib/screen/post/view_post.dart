@@ -5,9 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:readmore/readmore.dart';
 import 'package:uuid/uuid.dart';
+import 'package:video_player/video_player.dart'; // Import video_player
+import 'package:chewie/chewie.dart'; // Import chewie (optional)
 
 class ViewPost extends StatefulWidget {
-  final String? description, image, titleName, uuid; // Make nullable
+  final String? description, image, titleName, uuid, mediaType; // Make nullable
   final dateTime;
 
   ViewPost({
@@ -17,6 +19,7 @@ class ViewPost extends StatefulWidget {
     required this.titleName,
     required this.uuid,
     required this.dateTime,
+    required this.mediaType,
   });
 
   @override
@@ -26,6 +29,75 @@ class ViewPost extends StatefulWidget {
 class _ViewPostState extends State<ViewPost> {
   TextEditingController customerPassController = TextEditingController();
   var chatId = Uuid().v4();
+
+  VideoPlayerController? _videoPlayerController;
+  ChewieController? _chewieController; // Optional: For Chewie
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideoPlayer();
+  }
+
+  @override
+  void didUpdateWidget(covariant ViewPost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-initialize video player if the mediaType or image URL changes
+    if (widget.image != oldWidget.image ||
+        widget.mediaType != oldWidget.mediaType) {
+      _disposeVideoPlayer(); // Dispose old controller first
+      _initializeVideoPlayer(); // Initialize new one
+    }
+  }
+
+  void _initializeVideoPlayer() {
+    if (widget.mediaType == 'video' &&
+        widget.image != null &&
+        widget.image!.isNotEmpty) {
+      _videoPlayerController = VideoPlayerController.networkUrl(
+          Uri.parse(widget.image!),
+        )
+        ..initialize()
+            .then((_) {
+              setState(() {
+                // Ensure the first frame is shown and then play the video.
+              });
+            })
+            .catchError((error) {
+              print("Error initializing video player: $error");
+            });
+
+      // Optional: Initialize Chewie Controller
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController!,
+        autoPlay: false, // You can set this to true if you want auto-play
+        looping: false,
+        aspectRatio: _videoPlayerController!.value.aspectRatio,
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Text(
+              errorMessage,
+              style: const TextStyle(color: Colors.white),
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  void _disposeVideoPlayer() {
+    _chewieController?.dispose();
+    _videoPlayerController?.dispose();
+    _chewieController = null;
+    _videoPlayerController = null;
+  }
+
+  @override
+  void dispose() {
+    _disposeVideoPlayer();
+    customerPassController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +111,18 @@ class _ViewPostState extends State<ViewPost> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (widget.image != null && widget.image!.isNotEmpty)
+          // Conditional rendering for image or video
+          if (widget.mediaType == 'video' &&
+              _chewieController != null &&
+              _chewieController!.videoPlayerController.value.isInitialized)
+            AspectRatio(
+              aspectRatio:
+                  _chewieController!.videoPlayerController.value.aspectRatio,
+              child: Chewie(controller: _chewieController!),
+            )
+          else if (widget.mediaType == 'mediaUrl' &&
+              widget.image != null &&
+              widget.image!.isNotEmpty)
             Image.network(
               widget.image!,
               width: double.infinity,
@@ -48,7 +131,7 @@ class _ViewPostState extends State<ViewPost> {
               errorBuilder: (context, error, stackTrace) => noImageWidget(),
             )
           else
-            noImageWidget(),
+            noImageWidget(), // Fallback for no media or unknown type
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
@@ -114,5 +197,5 @@ String getFormattedDateTime(dynamic dateTime) {
     return "Invalid Date";
   }
 
-  return DateFormat('dd MMM yyyy, hh:mm a').format(parsedDate);
+  return DateFormat('dd MMM, hh:mm a').format(parsedDate);
 }

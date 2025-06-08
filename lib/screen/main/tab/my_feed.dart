@@ -37,18 +37,18 @@ class _MyFeedState extends State<MyFeed> {
     _fetchCurrentUserDetails();
   }
 
-  @override
-  void dispose() {
-    // Dispose all video controllers when the widget is disposed
-    _chewieControllers.forEach((key, controller) {
-      controller.dispose();
-    });
-    _videoControllers.forEach((key, controller) {
-      controller.dispose();
-    });
+  // @override
+  // void dispose() {
+  //   // Dispose all video controllers when the widget is disposed
+  //   _chewieControllers.forEach((key, controller) {
+  //     controller.dispose();
+  //   });
+  //   _videoControllers.forEach((key, controller) {
+  //     controller.dispose();
+  //   });
 
-    super.dispose();
-  }
+  //   super.dispose();
+  // }
 
   Future<void> _fetchCurrentUserDetails() async {
     final userDoc =
@@ -274,7 +274,7 @@ class _MyFeedState extends State<MyFeed> {
                               titleName: post['titleName'],
                               uuid: post['uuid'],
                               dateTime: post['date']?.toDate().toString() ?? '',
-                              // mediaType: mediaType,
+                              mediaType: mediaType,
                             ),
                       ),
                     );
