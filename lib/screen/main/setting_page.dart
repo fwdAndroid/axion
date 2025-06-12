@@ -34,14 +34,13 @@ class _SettingPageState extends State<SettingPage> {
                   context,
                   MaterialPageRoute(
                     builder:
-                        (builder) => DonateClass(
-                          url: "https://tikkie.me/pay/u4jn7levr2glh4tfk9f1",
-                        ),
+                        (builder) =>
+                            DonateClass(url: "https://www.paypal.com/"),
                   ),
                 );
               },
               trailing: Icon(Icons.arrow_forward_ios),
-              title: Text("Donate Now"),
+              title: Text("PayPal"),
               leading: Icon(Icons.payment),
             ),
           ),

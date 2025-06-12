@@ -12,27 +12,90 @@ class CommunityPage extends StatefulWidget {
 class _CommunityPageState extends State<CommunityPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool isJoined =
+      false; // True if user has any join request (pending or approved)
+  bool isApproved = false; // True only if request is approved
+  bool loading = true;
+  final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+  Map<String, dynamic>?
+  userJoinRequest; // Stores the user's join request object
 
   Future<void> joinGroup(String communityId) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
-    await _firestore.collection('communities').doc(communityId).update({
-      'members': FieldValue.arrayUnion([uid]),
-    });
+    try {
+      setState(() => loading = true);
+
+      final newRequest = {'userId': currentUserId, 'status': 'pending'};
+
+      await FirebaseFirestore.instance
+          .collection('communities')
+          .doc(communityId)
+          .update({
+            'userRequests': FieldValue.arrayUnion([newRequest]),
+          });
+
+      // Update local state
+      setState(() {
+        isJoined = true;
+        userJoinRequest = newRequest;
+      });
+    } catch (e) {
+      print('Error joining group: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send join request')));
+    } finally {
+      setState(() => loading = false);
+    }
   }
 
-  Future<void> leaveGroup(String communityId) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    await _firestore.collection('communities').doc(communityId).update({
-      'members': FieldValue.arrayRemove([uid]),
-    });
-  }
+  Future<void> leaveGroup(String communityId, String userId) async {
+    bool confirm = await showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: const Text("Leave Group"),
+            content: const Text("Are you sure you want to leave the group?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Leave", style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+    );
 
-  Future<void> removeUserFromGroup(String communityId, String userId) async {
-    await _firestore.collection('communities').doc(communityId).update({
-      'members': FieldValue.arrayRemove([userId]),
-    });
+    if (confirm && userJoinRequest != null) {
+      try {
+        setState(() => loading = true);
+
+        await FirebaseFirestore.instance
+            .collection('communities')
+            .doc(communityId)
+            .update({
+              'userRequests': FieldValue.arrayRemove([userJoinRequest]),
+            });
+
+        // Reset local state
+        setState(() {
+          isJoined = false;
+          isApproved = false;
+          userJoinRequest = null;
+        });
+      } catch (e) {
+        print('Error leaving group: $e');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to leave community')));
+      } finally {
+        setState(() => loading = false);
+      }
+    }
   }
 
   Future<List<Map<String, dynamic>>> getGroupMembers(String communityId) async {
@@ -162,7 +225,10 @@ class _CommunityPageState extends State<CommunityPage> {
                           child: ElevatedButton(
                             onPressed: () async {
                               if (isJoined) {
-                                await leaveGroup(communityId);
+                                await leaveGroup(
+                                  communityId,
+                                  FirebaseAuth.instance.currentUser!.uid,
+                                );
                                 showMessageBar("You Leave the Group", context);
                               } else {
                                 await joinGroup(communityId);

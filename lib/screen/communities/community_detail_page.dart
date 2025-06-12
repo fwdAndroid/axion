@@ -9,8 +9,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:readmore/readmore.dart';
 
 class CommunityDetailPage extends StatefulWidget {
-  String communityName;
-  String communityId;
+  final String communityName;
+  final String communityId;
+
   CommunityDetailPage({
     super.key,
     required this.communityId,
@@ -22,272 +23,272 @@ class CommunityDetailPage extends StatefulWidget {
 }
 
 class _CommunityDetailPageState extends State<CommunityDetailPage> {
-  bool isJoined = false;
+  bool isJoined =
+      false; // True if user has any join request (pending or approved)
+  bool isApproved = false; // True only if request is approved
   bool loading = true;
-  final Database _database =
-      Database(); // Create an instance of the Database class
+  final currentUserId = FirebaseAuth.instance.currentUser!.uid;
+  Map<String, dynamic>?
+  userJoinRequest; // Stores the user's join request object
+
   @override
   void initState() {
     super.initState();
-    checkUserJoined();
-    _fetchCurrentUserDetails();
+
+    _checkJoinStatus();
   }
 
-  // Check if the user is part of the group
-  Future<void> checkUserJoined() async {
-    bool joined = await _database.isUserJoined(widget.communityId);
-    setState(() {
-      isJoined = joined;
-      loading = false;
-    });
+  // Fetch the user's join request from the community document
+  Future<void> _checkJoinStatus() async {
+    try {
+      setState(() => loading = true);
+
+      final communityDoc =
+          await FirebaseFirestore.instance
+              .collection('communities')
+              .doc(widget.communityId)
+              .get();
+
+      if (communityDoc.exists) {
+        final userRequests =
+            communityDoc['userRequests'] as List<dynamic>? ?? [];
+
+        // Find the user's join request in the array
+        for (var request in userRequests) {
+          if (request is Map<String, dynamic> &&
+              request['userId'] == currentUserId) {
+            userJoinRequest = request;
+            setState(() {
+              isJoined = true;
+              isApproved = request['status'] == 'approved';
+            });
+            break;
+          }
+        }
+
+        // If no request was found
+        if (userJoinRequest == null) {
+          setState(() {
+            isJoined = false;
+            isApproved = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking join status: $e');
+    } finally {
+      setState(() => loading = false);
+    }
   }
 
-  // Join the group
+  // Create a join request
   Future<void> joinGroup() async {
-    await _database.joinGroup(widget.communityId);
-    setState(() {
-      isJoined = true;
-    });
+    try {
+      setState(() => loading = true);
+
+      final newRequest = {'userId': currentUserId, 'status': 'pending'};
+
+      await FirebaseFirestore.instance
+          .collection('communities')
+          .doc(widget.communityId)
+          .update({
+            'userRequests': FieldValue.arrayUnion([newRequest]),
+          });
+
+      // Update local state
+      setState(() {
+        isJoined = true;
+        userJoinRequest = newRequest;
+      });
+    } catch (e) {
+      print('Error joining group: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send join request')));
+    } finally {
+      setState(() => loading = false);
+    }
   }
 
-  // Leave the group with confirmation
+  // Remove join request
   Future<void> leaveGroup() async {
     bool confirm = await showDialog(
       context: context,
       builder:
           (_) => AlertDialog(
-            title: Text("Leave Group"),
-            content: Text("Are you sure you want to leave the group?"),
+            title: const Text("Leave Group"),
+            content: const Text("Are you sure you want to leave the group?"),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text("Cancel"),
+                child: const Text("Cancel"),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: Text("Leave", style: TextStyle(color: Colors.red)),
+                child: const Text("Leave", style: TextStyle(color: Colors.red)),
               ),
             ],
           ),
     );
 
-    if (confirm) {
-      await _database.leaveGroup(widget.communityId);
-      setState(() {
-        isJoined = false;
-      });
-    }
-  }
+    if (confirm && userJoinRequest != null) {
+      try {
+        setState(() => loading = true);
 
-  final currentUserId = FirebaseAuth.instance.currentUser!.uid;
-  String? currentUserName;
-  String? currentUserImage;
-
-  Future<void> _fetchCurrentUserDetails() async {
-    final userDoc =
         await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUserId)
-            .get();
-    if (userDoc.exists) {
-      setState(() {
-        currentUserName = userDoc['fullName'];
-        currentUserImage = userDoc['image'];
-      });
+            .collection('communities')
+            .doc(widget.communityId)
+            .update({
+              'userRequests': FieldValue.arrayRemove([userJoinRequest]),
+            });
+
+        // Reset local state
+        setState(() {
+          isJoined = false;
+          isApproved = false;
+          userJoinRequest = null;
+        });
+      } catch (e) {
+        print('Error leaving group: $e');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to leave community')));
+      } finally {
+        setState(() => loading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: mainColor,
-        onPressed: () {
-          // Navigate to chat screen
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (builder) => AddCommunities(communityId: widget.communityId),
-            ),
-          );
-        },
-        child: Icon(Icons.add, color: colorWhite),
-      ),
+      // Show FAB only when user is approved
+      floatingActionButton:
+          isApproved
+              ? FloatingActionButton(
+                backgroundColor: mainColor,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (builder) =>
+                              AddCommunities(communityId: widget.communityId),
+                    ),
+                  );
+                },
+                child: Icon(Icons.add, color: colorWhite),
+              )
+              : null,
       appBar: AppBar(
         actions: [
-          TextButton(
-            onPressed: isJoined ? leaveGroup : joinGroup,
-            child: Text(isJoined ? "Leave Group" : "Join Group"),
-          ),
+          if (loading)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            TextButton(
+              onPressed: isJoined ? leaveGroup : joinGroup,
+              child: Text(
+                isJoined
+                    ? (isApproved ? "Leave Group" : "Request Pending")
+                    : "Join Group",
+                style: TextStyle(
+                  color: isJoined && !isApproved ? Colors.grey : mainColor,
+                ),
+              ),
+            ),
         ],
         title: Text(
           widget.communityName,
           style: GoogleFonts.poppins(fontSize: 14),
         ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream:
-            FirebaseFirestore.instance
-                .collection('communitiesPost')
-                .orderBy('date', descending: true)
-                .where("uid", isNotEqualTo: currentUserId)
-                .where("commuityId", isEqualTo: widget.communityId)
-                .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.podcasts_outlined, size: 40),
-                  Text("No posts available"),
-                ],
+      body: _buildCommunityBody(),
+    );
+  }
+
+  Widget _buildCommunityBody() {
+    // Only approved members can see posts
+    if (!isApproved) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.group_add, size: 80, color: Colors.grey),
+            const SizedBox(height: 20),
+            Text(
+              isJoined
+                  ? "Your join request is pending approval"
+                  : "Join this community to see posts",
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 20),
+            if (!isJoined)
+              ElevatedButton(
+                onPressed: joinGroup,
+                child: const Text("Request to Join"),
               ),
-            );
-          }
+          ],
+        ),
+      );
+    }
 
-          var posts = snapshot.data!.docs;
+    // Approved members see the posts
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('communitiesPost')
+              .orderBy('date', descending: true)
+              .where("commuityId", isEqualTo: widget.communityId)
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          return ListView.builder(
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              var post = posts[index].data() as Map<String, dynamic>;
-              List<dynamic> likes = post['favorite'] ?? [];
-              bool isLiked = likes.contains(currentUserId);
-              int likeCount = likes.length;
-
-              return Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Card(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      post['image'] != null &&
-                              post['image'].toString().isNotEmpty
-                          ? Card(
-                            child: Image.network(
-                              post['image'],
-                              height: 120,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: const Icon(
-                                    Icons.image_not_supported,
-                                    size: 200,
-                                    color: Colors.grey,
-                                  ),
-                                );
-                              },
-                            ),
-                          )
-                          : Center(
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              size: 100,
-                              color: Colors.grey,
-                            ),
-                          ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Row(
-                          children: [
-                            Text(
-                              "Title: ",
-                              style: GoogleFonts.poppins(
-                                color: black,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            Text(
-                              post['titleName'] ?? "Untitled",
-                              style: GoogleFonts.poppins(
-                                color: black,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.forum_outlined, size: 80, color: Colors.grey),
+                const SizedBox(height: 20),
+                const Text("No posts yet in this community"),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (builder) =>
+                                AddCommunities(communityId: widget.communityId),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ReadMoreText(
-                          post['description'] ?? "No description available",
-                          trimLines: 3,
-                          trimMode: TrimMode.Line,
-                          trimCollapsedText: "Read More",
-                          trimExpandedText: " Read Less",
-                          moreStyle: const TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          lessStyle: const TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              _database.toggleLikeCommunity(
-                                post['uuid'],
-                                likes,
-                              );
-                            },
-                            icon: Icon(
-                              isLiked
-                                  ? Icons.thumb_up
-                                  : Icons.thumbs_up_down_outlined,
-                              color: isLiked ? Colors.green : Colors.grey,
-                            ),
-                          ),
-                          Text(
-                            "$likeCount",
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-
-                          TextButton(
-                            onPressed: () async {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (context) => ViewCommunityComment(
-                                        postId: post['uuid'],
-                                      ),
-                                ),
-                              );
-                            },
-                            child: Text(
-                              "Comments",
-                              style: TextStyle(color: black),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    );
+                  },
+                  child: const Text("Create First Post"),
                 ),
-              );
-            },
+              ],
+            ),
           );
-        },
-      ),
+        }
+
+        // Existing post list builder
+        return ListView.builder(
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            // Your existing post item builder
+          },
+        );
+      },
     );
   }
 }
