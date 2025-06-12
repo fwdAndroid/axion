@@ -154,4 +154,31 @@ class Database {
       'members': FieldValue.arrayRemove([uid]),
     });
   }
+
+  //Post Commemnt
+  Future<void> postComment({
+    required String postId,
+    required String commentText,
+    required String uid,
+    required String userName,
+    required String userImage,
+  }) async {
+    if (commentText.trim().isEmpty) return;
+
+    try {
+      await _firestore
+          .collection('feeds')
+          .doc(postId)
+          .collection('comments')
+          .add({
+            'text': commentText.trim(),
+            'timestamp': Timestamp.now(),
+            'uid': uid,
+            'userName': userName,
+            'userImage': userImage,
+          });
+    } catch (e) {
+      rethrow; // Let the UI layer handle the error
+    }
+  }
 }

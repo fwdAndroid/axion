@@ -28,7 +28,8 @@ class _AddPostState extends State<AddPost> {
   TextEditingController descriptionController = TextEditingController();
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
-
+  TextEditingController nameController = TextEditingController();
+  String? imageUrl;
   Uint8List? _image;
   File? _videoFile;
   String _mediaType = '';
@@ -36,6 +37,26 @@ class _AddPostState extends State<AddPost> {
   bool _isVideoInitializing = false;
   bool _showPlayButtonOverlay = true; // Track play button visibility
   var uuid = Uuid().v4();
+  @override
+  void initState() {
+    super.initState();
+    fetchData();
+  }
+
+  void fetchData() async {
+    DocumentSnapshot doc =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(FirebaseAuth.instance.currentUser!.uid)
+            .get();
+
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+
+    setState(() {
+      nameController.text = data['fullName'] ?? '';
+      imageUrl = data['image'];
+    });
+  }
 
   @override
   void dispose() {
@@ -290,6 +311,8 @@ class _AddPostState extends State<AddPost> {
                               'uid': FirebaseAuth.instance.currentUser!.uid,
                               'favorite': [],
                               'comment': [],
+                              'userImage': imageUrl,
+                              'userName': nameController.text,
                             });
 
                         showMessageBar("Feed Posted", context);
