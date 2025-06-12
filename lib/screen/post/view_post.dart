@@ -5,11 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:readmore/readmore.dart';
 import 'package:uuid/uuid.dart';
-import 'package:video_player/video_player.dart'; // Import video_player
-import 'package:chewie/chewie.dart'; // Import chewie (optional)
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 class ViewPost extends StatefulWidget {
-  final String? description, image, titleName, uuid, mediaType; // Make nullable
+  final String? description, image, titleName, uuid, mediaType;
   final dateTime;
 
   ViewPost({
@@ -31,7 +31,7 @@ class _ViewPostState extends State<ViewPost> {
   var chatId = Uuid().v4();
 
   VideoPlayerController? _videoPlayerController;
-  ChewieController? _chewieController; // Optional: For Chewie
+  ChewieController? _chewieController;
 
   @override
   void initState() {
@@ -42,11 +42,10 @@ class _ViewPostState extends State<ViewPost> {
   @override
   void didUpdateWidget(covariant ViewPost oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Re-initialize video player if the mediaType or image URL changes
     if (widget.image != oldWidget.image ||
         widget.mediaType != oldWidget.mediaType) {
-      _disposeVideoPlayer(); // Dispose old controller first
-      _initializeVideoPlayer(); // Initialize new one
+      _disposeVideoPlayer();
+      _initializeVideoPlayer();
     }
   }
 
@@ -59,18 +58,15 @@ class _ViewPostState extends State<ViewPost> {
         )
         ..initialize()
             .then((_) {
-              setState(() {
-                // Ensure the first frame is shown and then play the video.
-              });
+              setState(() {});
             })
             .catchError((error) {
               print("Error initializing video player: $error");
             });
 
-      // Optional: Initialize Chewie Controller
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController!,
-        autoPlay: false, // You can set this to true if you want auto-play
+        autoPlay: false,
         looping: false,
         aspectRatio: _videoPlayerController!.value.aspectRatio,
         errorBuilder: (context, errorMessage) {
@@ -111,13 +107,12 @@ class _ViewPostState extends State<ViewPost> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Conditional rendering for image or video
           if (widget.mediaType == 'video' &&
               _chewieController != null &&
               _chewieController!.videoPlayerController.value.isInitialized)
-            AspectRatio(
-              aspectRatio:
-                  _chewieController!.videoPlayerController.value.aspectRatio,
+            SizedBox(
+              height: 200,
+              width: double.infinity,
               child: Chewie(controller: _chewieController!),
             )
           else if (widget.mediaType == 'mediaUrl' &&
@@ -131,7 +126,7 @@ class _ViewPostState extends State<ViewPost> {
               errorBuilder: (context, error, stackTrace) => noImageWidget(),
             )
           else
-            noImageWidget(), // Fallback for no media or unknown type
+            noImageWidget(),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
@@ -146,19 +141,19 @@ class _ViewPostState extends State<ViewPost> {
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ReadMoreText(
+              widget.description ?? "No description available",
               trimLines: 3,
               trimMode: TrimMode.Line,
               trimCollapsedText: "Read More",
               trimExpandedText: " Read Less",
-              moreStyle: TextStyle(
+              moreStyle: const TextStyle(
                 color: Colors.blue,
                 fontWeight: FontWeight.bold,
               ),
-              lessStyle: TextStyle(
+              lessStyle: const TextStyle(
                 color: Colors.blue,
                 fontWeight: FontWeight.bold,
               ),
-              widget.description ?? "No description available",
               style: GoogleFonts.inter(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
@@ -185,10 +180,9 @@ class _ViewPostState extends State<ViewPost> {
 String getFormattedDateTime(dynamic dateTime) {
   if (dateTime == null) return "Unknown Date";
 
-  // Ensure it's a DateTime object
   DateTime parsedDate;
   if (dateTime is Timestamp) {
-    parsedDate = dateTime.toDate(); // If it's a Firestore Timestamp
+    parsedDate = dateTime.toDate();
   } else if (dateTime is String) {
     parsedDate = DateTime.tryParse(dateTime) ?? DateTime.now();
   } else if (dateTime is DateTime) {
