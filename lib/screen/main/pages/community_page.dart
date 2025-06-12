@@ -12,248 +12,207 @@ class CommunityPage extends StatefulWidget {
 class _CommunityPageState extends State<CommunityPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  bool isJoined =
-      false; // True if user has any join request (pending or approved)
-  bool isApproved = false; // True only if request is approved
-  bool loading = true;
   final currentUserId = FirebaseAuth.instance.currentUser!.uid;
-  Map<String, dynamic>?
-  userJoinRequest; // Stores the user's join request object
+
+  Map<String, Map<String, dynamic>> _userRequestsStatus = {};
+
+  Future<void> fetchUserRequests() async {
+    final snapshot = await _firestore.collection('communities').get();
+
+    Map<String, Map<String, dynamic>> statusMap = {};
+    for (var doc in snapshot.docs) {
+      final requests = doc['userRequests'] ?? [];
+      for (var req in requests) {
+        if (req['userId'] == currentUserId) {
+          statusMap[doc.id] = Map<String, dynamic>.from(req);
+        }
+      }
+    }
+
+    setState(() {
+      _userRequestsStatus = statusMap;
+    });
+  }
 
   Future<void> joinGroup(String communityId) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
+    final newRequest = {
+      'userId': currentUserId,
+      'status': 'approved',
+    }; // Change to 'pending' if needed
     try {
-      setState(() => loading = true);
-
-      final newRequest = {'userId': currentUserId, 'status': 'pending'};
-
-      await FirebaseFirestore.instance
-          .collection('communities')
-          .doc(communityId)
-          .update({
-            'userRequests': FieldValue.arrayUnion([newRequest]),
-          });
-
-      // Update local state
-      setState(() {
-        isJoined = true;
-        userJoinRequest = newRequest;
+      await _firestore.collection('communities').doc(communityId).update({
+        'userRequests': FieldValue.arrayUnion([newRequest]),
       });
+
+      setState(() {
+        _userRequestsStatus[communityId] = newRequest;
+      });
+
+      showMessageBar("You have joined the group!", context);
     } catch (e) {
-      print('Error joining group: $e');
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send join request')));
-    } finally {
-      setState(() => loading = false);
+      ).showSnackBar(SnackBar(content: Text("Join failed: $e")));
     }
   }
 
-  Future<void> leaveGroup(String communityId, String userId) async {
-    bool confirm = await showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Leave Group"),
-            content: const Text("Are you sure you want to leave the group?"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text("Leave", style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
-    );
+  Future<void> leaveGroup(String communityId) async {
+    final doc =
+        await _firestore.collection('communities').doc(communityId).get();
+    List<dynamic> requests = doc['userRequests'] ?? [];
 
-    if (confirm && userJoinRequest != null) {
+    Map<String, dynamic>? toRemove;
+    for (var req in requests) {
+      if (req['userId'] == currentUserId) {
+        toRemove = req;
+        break;
+      }
+    }
+
+    if (toRemove != null) {
       try {
-        setState(() => loading = true);
-
-        await FirebaseFirestore.instance
-            .collection('communities')
-            .doc(communityId)
-            .update({
-              'userRequests': FieldValue.arrayRemove([userJoinRequest]),
-            });
-
-        // Reset local state
-        setState(() {
-          isJoined = false;
-          isApproved = false;
-          userJoinRequest = null;
+        await _firestore.collection('communities').doc(communityId).update({
+          'userRequests': FieldValue.arrayRemove([toRemove]),
         });
+
+        setState(() {
+          _userRequestsStatus.remove(communityId);
+        });
+
+        showMessageBar("You left the group!", context);
       } catch (e) {
-        print('Error leaving group: $e');
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to leave community')));
-      } finally {
-        setState(() => loading = false);
+        ).showSnackBar(SnackBar(content: Text("Leave failed: $e")));
       }
     }
   }
 
-  Future<List<Map<String, dynamic>>> getGroupMembers(String communityId) async {
-    final doc =
-        await _firestore.collection('communities').doc(communityId).get();
-    List members = doc['members'] ?? [];
-    List<Map<String, dynamic>> users = [];
-
-    for (String uid in members) {
-      final userDoc = await _firestore.collection('users').doc(uid).get();
-      if (userDoc.exists) {
-        users.add({
-          'uid': uid,
-          'name': userDoc['name'] ?? 'Unnamed',
-          'email': userDoc['email'] ?? '',
-          'image': userDoc['image'], // optional profile image
-        });
-      }
-    }
-    return users;
-  }
-
-  Future<bool> isUserJoined(String communityId) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return false;
-    final doc =
-        await _firestore.collection('communities').doc(communityId).get();
-    List members = doc['members'] ?? [];
-    return members.contains(uid);
+  @override
+  void initState() {
+    super.initState();
+    fetchUserRequests();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Communities"),
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-      ),
+      appBar: AppBar(title: Text("Communities")),
       body: StreamBuilder(
         stream: _firestore.collection('communities').snapshots(),
         builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(child: Text("No communities available"));
+            return Center(child: Text("No communities found."));
           }
 
-          var communities = snapshot.data!.docs;
+          final communities = snapshot.data!.docs;
 
           return GridView.builder(
             padding: EdgeInsets.all(10),
+            itemCount: communities.length,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
+              childAspectRatio: 1.2,
               crossAxisSpacing: 10,
               mainAxisSpacing: 10,
-              childAspectRatio: 1.2,
             ),
-            itemCount: communities.length,
             itemBuilder: (context, index) {
-              var community = communities[index].data() as Map<String, dynamic>;
-              String communityId = communities[index].id;
+              final community = communities[index];
+              final communityData = community.data() as Map<String, dynamic>;
+              final communityId = community.id;
 
-              return FutureBuilder<bool>(
-                future: isUserJoined(communityId),
-                builder: (context, joinSnapshot) {
-                  bool isJoined = joinSnapshot.data ?? false;
+              final request = _userRequestsStatus[communityId];
+              final status = request?['status'];
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) {
-                            return CommunityDetailPage(
-                              communityId: communityId,
-                              communityName:
-                                  community['categoryName'] ?? "Community",
-                            );
-                          },
-                        ),
-                      );
-                    },
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child:
-                              community['photoURL'] != null &&
-                                      community['photoURL'].isNotEmpty
-                                  ? Image.network(
-                                    community['photoURL'],
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    fit: BoxFit.cover,
-                                  )
-                                  : Container(
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    color: Colors.grey.shade300,
-                                    child: Icon(
-                                      Icons.image_not_supported,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                        ),
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.symmetric(
-                            vertical: 8,
-                            horizontal: 12,
+              String buttonLabel = "Join Group";
+              Color buttonColor = Colors.blue;
+              bool isButtonEnabled = true;
+
+              if (status == 'approved') {
+                buttonLabel = "Leave Group";
+                buttonColor = Colors.red;
+              } else if (status == 'pending') {
+                buttonLabel = "Pending";
+                buttonColor = Colors.grey;
+                isButtonEnabled = false;
+              }
+
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => CommunityDetailPage(
+                            communityId: communityId,
+                            communityName:
+                                communityData['categoryName'] ?? "Community",
                           ),
-                          color: Colors.black.withOpacity(0.5),
-                          child: Text(
-                            community['categoryName'] ?? "Community",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 8,
-                          left: 8,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              if (isJoined) {
-                                await leaveGroup(
-                                  communityId,
-                                  FirebaseAuth.instance.currentUser!.uid,
-                                );
-                                showMessageBar("You Leave the Group", context);
-                              } else {
-                                await joinGroup(communityId);
-                                showMessageBar("You Joined the Group", context);
-                              }
-                              setState(() {});
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  isJoined ? Colors.red : Colors.blue,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                            ),
-                            child: Text(
-                              isJoined ? "Leave Group" : "Join Group",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   );
                 },
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child:
+                          communityData['photoURL'] != null
+                              ? Image.network(
+                                communityData['photoURL'],
+                                width: double.infinity,
+                                height: double.infinity,
+                                fit: BoxFit.cover,
+                              )
+                              : Container(
+                                color: Colors.grey.shade300,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  size: 40,
+                                ),
+                              ),
+                    ),
+                    Container(
+                      alignment: Alignment.bottomCenter,
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.vertical(
+                          bottom: Radius.circular(12),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            communityData['categoryName'] ?? 'Community',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ElevatedButton(
+                            onPressed:
+                                !isButtonEnabled
+                                    ? null
+                                    : () async {
+                                      if (status == 'approved') {
+                                        await leaveGroup(communityId);
+                                      } else {
+                                        await joinGroup(communityId);
+                                      }
+                                    },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: buttonColor,
+                            ),
+                            child: Text(buttonLabel),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           );
