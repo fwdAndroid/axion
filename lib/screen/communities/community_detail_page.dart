@@ -263,6 +263,19 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
                 const SizedBox(height: 20),
                 const Text("No posts yet in this community"),
                 const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (builder) =>
+                                AddCommunities(communityId: widget.communityId),
+                      ),
+                    );
+                  },
+                  child: const Text("Create First Post"),
+                ),
               ],
             ),
           );
