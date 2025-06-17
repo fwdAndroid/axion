@@ -9,7 +9,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:readmore/readmore.dart';
-import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 
 class MyCommunities extends StatefulWidget {
@@ -151,286 +150,311 @@ class _MyCommunitiesState extends State<MyCommunities> {
 
               return Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(5),
-                    border: Border.all(width: .2),
-                  ),
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundImage: NetworkImage(
-                              post['userImage'] ?? '',
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (builder) => ViewPost(
+                              description: post['description'],
+                              image: mediaUrl,
+                              titleName: post['titleName'],
+                              uuid: post['uuid'],
+                              dateTime: post['date']?.toDate().toString() ?? '',
+                              mediaType: mediaType,
                             ),
-                            radius: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  post['userName'] ?? 'User',
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  DateTime.tryParse(
-                                            post['date']?.toDate().toString() ??
-                                                '',
-                                          )
-                                          ?.toLocal()
-                                          .toString()
-                                          .split('.')
-                                          .first ??
-                                      '',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        post['titleName'] ?? "Untitled",
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
-                      ),
-                      ReadMoreText(
-                        post['description'] ?? 'No description',
-                        trimLines: 3,
-                        trimMode: TrimMode.Line,
-                        trimCollapsedText: 'Read More',
-                        trimExpandedText: ' Show Less',
-                        moreStyle: const TextStyle(color: Colors.blue),
-                        lessStyle: const TextStyle(color: Colors.blue),
-                      ),
-                      if (mediaUrl.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: MediaPreviewWidget(
-                            mediaUrl: mediaUrl,
-                            mediaType: mediaType,
-                            postId: postId,
-                            videoControllers: _videoControllers,
-                            chewieControllers: _chewieControllers,
-                            videoInitializationFutures:
-                                _videoInitializationFutures,
-                            refreshParent: () => setState(() {}),
-                            context: context,
-                          ),
-                        ),
-                      const Divider(),
-                      PostActionsWidgetCommuity(
-                        postId: postId,
-                        likeCount: likeCount,
-                        isLiked: isLiked,
-                        likes: likes,
-                        mediaUrl: mediaUrl,
-                        currentUserId: currentUserId,
-                        currentUserName: currentUserName,
-                        currentUserImage: currentUserImage,
-                        post: post,
-                        database: _database,
-                      ),
-
-                      // Comments
-                      if ((post['comment'] as List?)?.isNotEmpty ?? false)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: List<Widget>.from(
-                              (post['comment'] as List).map((comment) {
-                                final String commentId = comment['id'];
-                                final String commenterId = comment['userId'];
-                                final List<dynamic> commentLikes =
-                                    comment['likes'] ?? [];
-                                final bool isCommentLiked = commentLikes
-                                    .contains(currentUserId);
-                                final List<dynamic> replies =
-                                    comment['replies'] ?? [];
-
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.account_circle,
-                                            size: 24,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  comment['username'] ?? 'User',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  comment['text'] ?? '',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          IconButton(
-                                            icon: Icon(
-                                              isCommentLiked
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              color:
-                                                  isCommentLiked
-                                                      ? Colors.red
-                                                      : Colors.grey,
-                                              size: 20,
-                                            ),
-                                            onPressed: () {
-                                              Database().toggleCommentLike(
-                                                postId,
-                                                commentId,
-                                                isCommentLiked,
-                                              );
-                                            },
-                                          ),
-                                          if (commenterId == currentUserId)
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.delete,
-                                                size: 20,
-                                              ),
-                                              onPressed: () {
-                                                deleteComment(
-                                                  postId,
-                                                  commentId,
-                                                );
-                                              },
-                                            ),
-                                        ],
-                                      ),
-                                      if (replies.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 32.0,
-                                            top: 4,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: List<Widget>.from(
-                                              replies.map((reply) {
-                                                return Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 2.0,
-                                                      ),
-                                                  child: Text(
-                                                    '${reply['username'] ?? 'User'}: ${reply['text'] ?? ''}',
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                );
-                                              }),
-                                            ),
-                                          ),
-                                        ),
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          left: 32.0,
-                                        ),
-                                        child: TextButton(
-                                          onPressed:
-                                              () => showReplyDialog(
-                                                postId,
-                                                commentId,
-                                              ),
-                                          child: const Text(
-                                            'Reply',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                        ),
-
-                      // Add comment
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Row(
+                    );
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(width: .2),
+                    ),
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
                             CircleAvatar(
                               backgroundImage: NetworkImage(
-                                currentUserImage ??
-                                    'https://via.placeholder.com/150',
+                                post['userImage'] ?? '',
                               ),
                               radius: 20,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 10),
                             Expanded(
-                              child: TextField(
-                                controller: _commentController,
-                                decoration: InputDecoration(
-                                  fillColor: Colors.white,
-                                  filled: true,
-                                  hintText: 'Add a comment...',
-                                  border: const OutlineInputBorder(),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 10,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: const Icon(
-                                      Icons.send,
-                                      color: Colors.blueAccent,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    post['userName'] ?? 'User',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                    onPressed: () {
-                                      Database().addCommentCommnutiye(
-                                        postId,
-                                        context,
-                                        _commentController,
-                                      );
-                                    },
                                   ),
-                                ),
-                                onSubmitted: (text) {
-                                  Database().addCommentCommnutiye(
-                                    postId,
-                                    context,
-                                    _commentController,
-                                  );
-                                },
+                                  Text(
+                                    DateTime.tryParse(
+                                              post['date']
+                                                      ?.toDate()
+                                                      .toString() ??
+                                                  '',
+                                            )
+                                            ?.toLocal()
+                                            .toString()
+                                            .split('.')
+                                            .first ??
+                                        '',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Text(
+                          post['titleName'] ?? "Untitled",
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        ReadMoreText(
+                          post['description'] ?? 'No description',
+                          trimLines: 3,
+                          trimMode: TrimMode.Line,
+                          trimCollapsedText: 'Read More',
+                          trimExpandedText: ' Show Less',
+                          moreStyle: const TextStyle(color: Colors.blue),
+                          lessStyle: const TextStyle(color: Colors.blue),
+                        ),
+                        if (mediaUrl.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: MediaPreviewWidget(
+                              mediaUrl: mediaUrl,
+                              mediaType: mediaType,
+                              postId: postId,
+                              videoControllers: _videoControllers,
+                              chewieControllers: _chewieControllers,
+                              videoInitializationFutures:
+                                  _videoInitializationFutures,
+                              refreshParent: () => setState(() {}),
+                              context: context,
+                            ),
+                          ),
+                        const Divider(),
+                        PostActionsWidgetCommuity(
+                          postId: postId,
+                          likeCount: likeCount,
+                          isLiked: isLiked,
+                          likes: likes,
+                          mediaUrl: mediaUrl,
+                          currentUserId: currentUserId,
+                          currentUserName: currentUserName,
+                          currentUserImage: currentUserImage,
+                          post: post,
+                          database: _database,
+                        ),
+
+                        // Comments
+                        if ((post['comment'] as List?)?.isNotEmpty ?? false)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: List<Widget>.from(
+                                (post['comment'] as List).map((comment) {
+                                  final String commentId = comment['id'];
+                                  final String commenterId = comment['userId'];
+                                  final List<dynamic> commentLikes =
+                                      comment['likes'] ?? [];
+                                  final bool isCommentLiked = commentLikes
+                                      .contains(currentUserId);
+                                  final List<dynamic> replies =
+                                      comment['replies'] ?? [];
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.account_circle,
+                                              size: 24,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    comment['username'] ??
+                                                        'User',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    comment['text'] ?? '',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                isCommentLiked
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                color:
+                                                    isCommentLiked
+                                                        ? Colors.red
+                                                        : Colors.grey,
+                                                size: 20,
+                                              ),
+                                              onPressed: () {
+                                                Database().toggleCommentLike(
+                                                  postId,
+                                                  commentId,
+                                                  isCommentLiked,
+                                                );
+                                              },
+                                            ),
+                                            if (commenterId == currentUserId)
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete,
+                                                  size: 20,
+                                                ),
+                                                onPressed: () {
+                                                  deleteComment(
+                                                    postId,
+                                                    commentId,
+                                                  );
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                        if (replies.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 32.0,
+                                              top: 4,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: List<Widget>.from(
+                                                replies.map((reply) {
+                                                  return Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 2.0,
+                                                        ),
+                                                    child: Text(
+                                                      '${reply['username'] ?? 'User'}: ${reply['text'] ?? ''}',
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 12,
+                                                          ),
+                                                    ),
+                                                  );
+                                                }),
+                                              ),
+                                            ),
+                                          ),
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 32.0,
+                                          ),
+                                          child: TextButton(
+                                            onPressed:
+                                                () => showReplyDialog(
+                                                  postId,
+                                                  commentId,
+                                                ),
+                                            child: const Text(
+                                              'Reply',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                          ),
+
+                        // Add comment
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: NetworkImage(
+                                  currentUserImage ??
+                                      'https://via.placeholder.com/150',
+                                ),
+                                radius: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentController,
+                                  decoration: InputDecoration(
+                                    fillColor: Colors.white,
+                                    filled: true,
+                                    hintText: 'Add a comment...',
+                                    border: const OutlineInputBorder(),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 10,
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: const Icon(
+                                        Icons.send,
+                                        color: Colors.blueAccent,
+                                      ),
+                                      onPressed: () {
+                                        Database().addCommentCommnutiye(
+                                          postId,
+                                          context,
+                                          _commentController,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  onSubmitted: (text) {
+                                    Database().addCommentCommnutiye(
+                                      postId,
+                                      context,
+                                      _commentController,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

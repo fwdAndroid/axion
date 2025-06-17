@@ -263,4 +263,89 @@ class Database {
     }
     await docRef.update({'comment': comments});
   }
+
+  //Feeds Comment
+  Future<void> addFeedCommnutiye(
+    String postid,
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final String commentText = controller.text.trim();
+    if (commentText.isEmpty) return;
+
+    final String commentId = const Uuid().v4();
+    final String userId = FirebaseAuth.instance.currentUser!.uid;
+    final String username =
+        FirebaseAuth.instance.currentUser!.displayName ?? 'Anonymous';
+    final DateTime now = DateTime.now();
+
+    try {
+      final docRef = FirebaseFirestore.instance.collection('feeds').doc(postid);
+      final docSnapshot = await docRef.get();
+
+      if (!docSnapshot.exists) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Post not found')));
+        return;
+      }
+
+      if (!docSnapshot.data()!.containsKey('comment')) {
+        await docRef.set({'comment': []}, SetOptions(merge: true));
+      }
+
+      await docRef.update({
+        'comment': FieldValue.arrayUnion([
+          {
+            'id': commentId,
+            'userId': userId,
+            'username': username,
+            'text': commentText,
+            'createdAt': now,
+            'likes': [],
+            'replies': [],
+            'isReply': false,
+          },
+        ]),
+      });
+
+      controller.clear();
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add comment: $e')));
+    }
+  }
+
+  void deleteFeedComment(String postId, String commentId) async {
+    final docRef = FirebaseFirestore.instance.collection('feeds').doc(postId);
+    final snapshot = await docRef.get();
+
+    if (!snapshot.exists) return;
+    List<dynamic> comments = snapshot.data()!['comment'] ?? [];
+    comments.removeWhere((comment) => comment['id'] == commentId);
+    await docRef.update({'comment': comments});
+  }
+
+  void toggleFeedLike(String postId, String commentId, bool isLiked) async {
+    final docRef = FirebaseFirestore.instance.collection('feeds').doc(postId);
+    final snapshot = await docRef.get();
+
+    if (!snapshot.exists) return;
+    final List<dynamic> comments = snapshot.data()!['comment'] ?? [];
+
+    for (var comment in comments) {
+      if (comment['id'] == commentId) {
+        final likes = List<String>.from(comment['likes'] ?? []);
+        if (isLiked) {
+          likes.remove(FirebaseAuth.instance.currentUser!.uid);
+        } else {
+          likes.add(FirebaseAuth.instance.currentUser!.uid);
+        }
+        comment['likes'] = likes;
+        break;
+      }
+    }
+    await docRef.update({'comment': comments});
+  }
 }
