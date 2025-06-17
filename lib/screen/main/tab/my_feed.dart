@@ -74,7 +74,7 @@ class _MyFeedState extends State<MyFeed> {
                 .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: Text(""));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
@@ -120,7 +120,7 @@ class _MyFeedState extends State<MyFeed> {
                                 uuid: post['uuid'],
                                 dateTime:
                                     post['date']?.toDate().toString() ?? '',
-                                mediaType: mediaType,
+                                mediaType: post['mediaType'],
                               ),
                         ),
                       );
@@ -216,7 +216,6 @@ class _MyFeedState extends State<MyFeed> {
                                 videoInitializationFutures:
                                     _videoInitializationFutures,
                                 refreshParent: () => setState(() {}),
-                                context: context,
                               ),
                             ),
 

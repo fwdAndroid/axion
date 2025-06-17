@@ -10,7 +10,7 @@ import 'package:chewie/chewie.dart';
 
 class ViewPost extends StatefulWidget {
   final String? description, image, titleName, uuid, mediaType;
-  final dateTime;
+  final dynamic dateTime;
 
   ViewPost({
     super.key,
@@ -36,6 +36,7 @@ class _ViewPostState extends State<ViewPost> {
   @override
   void initState() {
     super.initState();
+    print("DEBUG: mediaType = '${widget.mediaType}'");
     _initializeVideoPlayer();
   }
 
@@ -49,35 +50,43 @@ class _ViewPostState extends State<ViewPost> {
     }
   }
 
-  void _initializeVideoPlayer() {
-    if (widget.mediaType == 'video' &&
+  String normalizeMediaType(String? type) {
+    final t = (type ?? '').toLowerCase();
+    if (t.contains('video')) return 'video';
+    if (t.contains('image') || t.contains('mediaurl') || t.contains('img'))
+      return 'image';
+    return 'unknown';
+  }
+
+  Future<void> _initializeVideoPlayer() async {
+    if (normalizeMediaType(widget.mediaType) == 'video' &&
         widget.image != null &&
         widget.image!.isNotEmpty) {
-      _videoPlayerController = VideoPlayerController.networkUrl(
+      try {
+        _videoPlayerController = VideoPlayerController.networkUrl(
           Uri.parse(widget.image!),
-        )
-        ..initialize()
-            .then((_) {
-              setState(() {});
-            })
-            .catchError((error) {
-              print("Error initializing video player: $error");
-            });
+        );
+        await _videoPlayerController!.initialize();
 
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        autoPlay: false,
-        looping: false,
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              errorMessage,
-              style: const TextStyle(color: Colors.white),
-            ),
-          );
-        },
-      );
+        _chewieController = ChewieController(
+          videoPlayerController: _videoPlayerController!,
+          autoPlay: false,
+          looping: false,
+          aspectRatio: _videoPlayerController!.value.aspectRatio,
+          errorBuilder: (context, errorMessage) {
+            return Center(
+              child: Text(
+                errorMessage,
+                style: const TextStyle(color: Colors.white),
+              ),
+            );
+          },
+        );
+
+        setState(() {}); // only after everything is ready
+      } catch (e) {
+        print("Video initialization error: $e");
+      }
     }
   }
 
@@ -97,6 +106,8 @@ class _ViewPostState extends State<ViewPost> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaType = normalizeMediaType(widget.mediaType);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -107,7 +118,7 @@ class _ViewPostState extends State<ViewPost> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (widget.mediaType == 'video' &&
+          if (mediaType == 'video' &&
               _chewieController != null &&
               _chewieController!.videoPlayerController.value.isInitialized)
             SizedBox(
@@ -115,7 +126,7 @@ class _ViewPostState extends State<ViewPost> {
               width: double.infinity,
               child: Chewie(controller: _chewieController!),
             )
-          else if (widget.mediaType == 'mediaUrl' &&
+          else if (mediaType == 'image' &&
               widget.image != null &&
               widget.image!.isNotEmpty)
             Image.network(
@@ -126,7 +137,19 @@ class _ViewPostState extends State<ViewPost> {
               errorBuilder: (context, error, stackTrace) => noImageWidget(),
             )
           else
-            noImageWidget(),
+            Column(
+              children: [
+                noImageWidget(),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    "Unknown media type: ${widget.mediaType}",
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            ),
+
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(
@@ -137,7 +160,9 @@ class _ViewPostState extends State<ViewPost> {
               ),
             ),
           ),
-          Divider(),
+
+          const Divider(),
+
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: ReadMoreText(
@@ -160,6 +185,7 @@ class _ViewPostState extends State<ViewPost> {
               ),
             ),
           ),
+
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Text(

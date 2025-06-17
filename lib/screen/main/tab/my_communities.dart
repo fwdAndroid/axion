@@ -246,7 +246,6 @@ class _MyCommunitiesState extends State<MyCommunities> {
                               videoInitializationFutures:
                                   _videoInitializationFutures,
                               refreshParent: () => setState(() {}),
-                              context: context,
                             ),
                           ),
                         const Divider(),

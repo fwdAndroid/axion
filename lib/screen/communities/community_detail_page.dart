@@ -408,7 +408,6 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
                               videoInitializationFutures:
                                   _videoInitializationFutures,
                               refreshParent: () => setState(() {}),
-                              context: context,
                             ),
                           ),
                         const Divider(),
