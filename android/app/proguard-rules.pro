@@ -4,6 +4,8 @@
 -keep class com.zegocloud.** { *; }
 -keep class im.zego.** { *; }
 -keep class org.webrtc.** { *; }
+-keep class org.videolan.libvlc.** { *; }
+
 
 # Keep specific classes mentioned in error
 -keep class com.itgsa.opensdk.mediaunit.KaraokeMediaHelper { *; }

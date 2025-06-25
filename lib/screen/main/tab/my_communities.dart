@@ -23,24 +23,15 @@ class _MyCommunitiesState extends State<MyCommunities> {
   String? currentUserName;
   String? currentUserImage;
   final Database _database = Database();
-
   final Map<String, VideoPlayerController> _videoControllers = {};
   final Map<String, ChewieController> _chewieControllers = {};
   final Map<String, Future<void>> _videoInitializationFutures = {};
-
   final TextEditingController _commentController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _fetchCurrentUserDetails();
-  }
-
-  @override
-  void dispose() {
-    _chewieControllers.forEach((key, controller) => controller.dispose());
-    _videoControllers.forEach((key, controller) => controller.dispose());
-    super.dispose();
   }
 
   Future<void> _fetchCurrentUserDetails() async {
@@ -238,13 +229,14 @@ class _MyCommunitiesState extends State<MyCommunities> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: MediaPreviewWidget(
-                              mediaUrl: mediaUrl,
-                              mediaType: mediaType,
-                              postId: postId,
                               videoControllers: _videoControllers,
                               chewieControllers: _chewieControllers,
                               videoInitializationFutures:
                                   _videoInitializationFutures,
+                              mediaUrl: mediaUrl,
+                              mediaType: mediaType,
+                              postId: postId,
+
                               refreshParent: () => setState(() {}),
                             ),
                           ),

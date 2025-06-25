@@ -400,13 +400,14 @@ class _CommunityDetailPageState extends State<CommunityDetailPage> {
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: MediaPreviewWidget(
-                              mediaUrl: mediaUrl,
-                              mediaType: mediaType,
-                              postId: postId,
                               videoControllers: _videoControllers,
                               chewieControllers: _chewieControllers,
                               videoInitializationFutures:
                                   _videoInitializationFutures,
+                              mediaUrl: mediaUrl,
+                              mediaType: mediaType,
+                              postId: postId,
+
                               refreshParent: () => setState(() {}),
                             ),
                           ),

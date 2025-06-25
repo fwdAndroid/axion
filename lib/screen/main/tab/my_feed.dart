@@ -103,340 +103,327 @@ class _MyFeedState extends State<MyFeed> {
               String mediaUrl = post['mediaUrl'] ?? '';
               String mediaType = post['mediaType'] ?? 'image';
 
-              return Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Container(
-                  padding: const EdgeInsets.all(8.0),
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (builder) => ViewPost(
-                                description: post['description'],
-                                image: mediaUrl,
-                                titleName: post['titleName'],
-                                uuid: post['uuid'],
-                                dateTime:
-                                    post['date']?.toDate().toString() ?? '',
-                                mediaType: post['mediaType'],
+              return Container(
+                padding: EdgeInsets.all(8),
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (builder) => ViewPost(
+                              description: post['description'],
+                              image: mediaUrl,
+                              titleName: post['titleName'],
+                              uuid: post['uuid'],
+                              dateTime: post['date']?.toDate().toString() ?? '',
+                              mediaType: post['mediaType'],
+                            ),
+                      ),
+                    );
+                  },
+                  child: Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: NetworkImage(
+                                  post['userImage'] ?? '',
+                                ),
+                                radius: 20,
                               ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      post['userName'] ?? 'User',
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Text(
+                                      DateTime.tryParse(
+                                                post['date']
+                                                        ?.toDate()
+                                                        .toString() ??
+                                                    '',
+                                              )
+                                              ?.toLocal()
+                                              .toString()
+                                              .split('.')
+                                              .first ??
+                                          '',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    },
-                    child: Card(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 8.0,
+                            right: 8,
+                            top: 8,
+                          ),
+                          child: Text(
+                            post['titleName'] ?? "Untitled",
+                            style: GoogleFonts.poppins(
+                              color: black,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8.0, right: 8),
+                          child: ReadMoreText(
+                            post['description'] ?? 'No description',
+                            trimLines: 3,
+                            trimMode: TrimMode.Line,
+                            trimCollapsedText: 'Read More',
+                            trimExpandedText: ' Show Less',
+                            moreStyle: const TextStyle(color: Colors.blue),
+                            lessStyle: const TextStyle(color: Colors.blue),
+                          ),
+                        ),
+
+                        if (mediaUrl.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundImage: NetworkImage(
-                                    post['userImage'] ?? '',
-                                  ),
-                                  radius: 20,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        post['userName'] ?? 'User',
-                                        style: GoogleFonts.poppins(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Text(
-                                        DateTime.tryParse(
-                                                  post['date']
-                                                          ?.toDate()
-                                                          .toString() ??
-                                                      '',
-                                                )
-                                                ?.toLocal()
-                                                .toString()
-                                                .split('.')
-                                                .first ??
-                                            '',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: MediaPreviewWidget(
+                              mediaUrl: mediaUrl,
+                              mediaType: mediaType,
+                              postId: postId,
+                              videoControllers: _videoControllers,
+                              chewieControllers: _chewieControllers,
+                              videoInitializationFutures:
+                                  _videoInitializationFutures,
+                              refreshParent: () => setState(() {}),
                             ),
                           ),
-                          const SizedBox(height: 10),
+
+                        const SizedBox(height: 12),
+                        const Divider(),
+                        PostActionsWidget(
+                          postId: postId,
+                          likeCount: likeCount,
+                          isLiked: isLiked,
+                          likes: likes,
+                          mediaUrl: mediaUrl,
+                          currentUserId: currentUserId,
+                          currentUserName: currentUserName,
+                          currentUserImage: currentUserImage,
+                          post: post,
+                          database: _database,
+                        ),
+
+                        const SizedBox(height: 10),
+                        // Display latest comment here
+                        if ((post['comment'] as List?)?.isNotEmpty ?? false)
                           Padding(
-                            padding: const EdgeInsets.only(
-                              left: 8.0,
-                              right: 8,
-                              top: 8,
-                            ),
-                            child: Text(
-                              post['titleName'] ?? "Untitled",
-                              style: GoogleFonts.poppins(
-                                color: black,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0, right: 8),
-                            child: ReadMoreText(
-                              post['description'] ?? 'No description',
-                              trimLines: 3,
-                              trimMode: TrimMode.Line,
-                              trimCollapsedText: 'Read More',
-                              trimExpandedText: ' Show Less',
-                              moreStyle: const TextStyle(color: Colors.blue),
-                              lessStyle: const TextStyle(color: Colors.blue),
-                            ),
-                          ),
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: List<Widget>.from(
+                                (post['comment'] as List).map((comment) {
+                                  final String commentId = comment['id'];
+                                  final String commenterId = comment['userId'];
+                                  final List<dynamic> commentLikes =
+                                      comment['likes'] ?? [];
+                                  final bool isCommentLiked = commentLikes
+                                      .contains(currentUserId);
+                                  final List<dynamic> replies =
+                                      comment['replies'] ?? [];
 
-                          if (mediaUrl.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: MediaPreviewWidget(
-                                mediaUrl: mediaUrl,
-                                mediaType: mediaType,
-                                postId: postId,
-                                videoControllers: _videoControllers,
-                                chewieControllers: _chewieControllers,
-                                videoInitializationFutures:
-                                    _videoInitializationFutures,
-                                refreshParent: () => setState(() {}),
-                              ),
-                            ),
-
-                          const SizedBox(height: 12),
-                          const Divider(),
-                          PostActionsWidget(
-                            postId: postId,
-                            likeCount: likeCount,
-                            isLiked: isLiked,
-                            likes: likes,
-                            mediaUrl: mediaUrl,
-                            currentUserId: currentUserId,
-                            currentUserName: currentUserName,
-                            currentUserImage: currentUserImage,
-                            post: post,
-                            database: _database,
-                          ),
-
-                          const SizedBox(height: 10),
-                          // Display latest comment here
-                          if ((post['comment'] as List?)?.isNotEmpty ?? false)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8.0,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: List<Widget>.from(
-                                  (post['comment'] as List).map((comment) {
-                                    final String commentId = comment['id'];
-                                    final String commenterId =
-                                        comment['userId'];
-                                    final List<dynamic> commentLikes =
-                                        comment['likes'] ?? [];
-                                    final bool isCommentLiked = commentLikes
-                                        .contains(currentUserId);
-                                    final List<dynamic> replies =
-                                        comment['replies'] ?? [];
-
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 8.0,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.account_circle,
-                                                size: 24,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      comment['username'] ??
-                                                          'User',
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                            fontSize: 13,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                          ),
-                                                    ),
-                                                    Text(
-                                                      comment['text'] ?? '',
-                                                      style:
-                                                          GoogleFonts.poppins(
-                                                            fontSize: 13,
-                                                          ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              IconButton(
-                                                icon: Icon(
-                                                  isCommentLiked
-                                                      ? Icons.favorite
-                                                      : Icons.favorite_border,
-                                                  color:
-                                                      isCommentLiked
-                                                          ? Colors.red
-                                                          : Colors.grey,
-                                                  size: 20,
-                                                ),
-                                                onPressed: () {
-                                                  Database().toggleFeedLike(
-                                                    postId,
-                                                    commentId,
-                                                    isCommentLiked,
-                                                  );
-                                                },
-                                              ),
-                                              if (commenterId == currentUserId)
-                                                IconButton(
-                                                  icon: const Icon(
-                                                    Icons.delete,
-                                                    size: 20,
-                                                  ),
-                                                  onPressed: () {
-                                                    Database()
-                                                        .deleteFeedComment(
-                                                          postId,
-                                                          commentId,
-                                                        );
-                                                  },
-                                                ),
-                                            ],
-                                          ),
-                                          if (replies.isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 32.0,
-                                                top: 4,
-                                              ),
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.account_circle,
+                                              size: 24,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
                                               child: Column(
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
-                                                children: List<Widget>.from(
-                                                  replies.map((reply) {
-                                                    return Padding(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            vertical: 2.0,
-                                                          ),
-                                                      child: Text(
-                                                        '${reply['username'] ?? 'User'}: ${reply['text'] ?? ''}',
-                                                        style:
-                                                            GoogleFonts.poppins(
-                                                              fontSize: 12,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  }),
-                                                ),
+                                                children: [
+                                                  Text(
+                                                    comment['username'] ??
+                                                        'User',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    comment['text'] ?? '',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
+                                            IconButton(
+                                              icon: Icon(
+                                                isCommentLiked
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                color:
+                                                    isCommentLiked
+                                                        ? Colors.red
+                                                        : Colors.grey,
+                                                size: 20,
+                                              ),
+                                              onPressed: () {
+                                                Database().toggleFeedLike(
+                                                  postId,
+                                                  commentId,
+                                                  isCommentLiked,
+                                                );
+                                              },
+                                            ),
+                                            if (commenterId == currentUserId)
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete,
+                                                  size: 20,
+                                                ),
+                                                onPressed: () {
+                                                  Database().deleteFeedComment(
+                                                    postId,
+                                                    commentId,
+                                                  );
+                                                },
+                                              ),
+                                          ],
+                                        ),
+                                        if (replies.isNotEmpty)
                                           Padding(
                                             padding: const EdgeInsets.only(
                                               left: 32.0,
+                                              top: 4,
                                             ),
-                                            child: TextButton(
-                                              onPressed:
-                                                  () => showReplyDialog(
-                                                    postId,
-                                                    commentId,
-                                                  ),
-                                              child: const Text(
-                                                'Reply',
-                                                style: TextStyle(fontSize: 12),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: List<Widget>.from(
+                                                replies.map((reply) {
+                                                  return Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 2.0,
+                                                        ),
+                                                    child: Text(
+                                                      '${reply['username'] ?? 'User'}: ${reply['text'] ?? ''}',
+                                                      style:
+                                                          GoogleFonts.poppins(
+                                                            fontSize: 12,
+                                                          ),
+                                                    ),
+                                                  );
+                                                }),
                                               ),
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    );
-                                  }),
-                                ),
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 32.0,
+                                          ),
+                                          child: TextButton(
+                                            onPressed:
+                                                () => showReplyDialog(
+                                                  postId,
+                                                  commentId,
+                                                ),
+                                            child: const Text(
+                                              'Reply',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
                               ),
                             ),
-                          // Comment input TextFormField
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8.0,
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundImage: NetworkImage(
-                                    currentUserImage ??
-                                        'https://via.placeholder.com/150',
-                                  ),
-                                  radius: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _commentController,
-                                    decoration: InputDecoration(
-                                      fillColor: Colors.white,
-                                      filled: true,
-                                      hintText: 'Add a comment...',
-                                      border: const OutlineInputBorder(),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 10,
-                                          ),
-                                      suffixIcon: IconButton(
-                                        icon: const Icon(
-                                          Icons.send,
-                                          color: Colors.blueAccent,
-                                        ),
-                                        onPressed: () {
-                                          Database().addFeedCommnutiye(
-                                            postId,
-                                            context,
-                                            _commentController,
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    onSubmitted: (text) {
-                                      Database().addFeedCommnutiye(
-                                        postId,
-                                        context,
-                                        _commentController,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
-                        ],
-                      ),
+                        // Comment input TextFormField
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: NetworkImage(
+                                  currentUserImage ??
+                                      'https://via.placeholder.com/150',
+                                ),
+                                radius: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentController,
+                                  decoration: InputDecoration(
+                                    fillColor: Colors.white,
+                                    filled: true,
+                                    hintText: 'Add a comment...',
+                                    border: const OutlineInputBorder(),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 10,
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: const Icon(
+                                        Icons.send,
+                                        color: Colors.blueAccent,
+                                      ),
+                                      onPressed: () {
+                                        Database().addFeedCommnutiye(
+                                          postId,
+                                          context,
+                                          _commentController,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  onSubmitted: (text) {
+                                    Database().addFeedCommnutiye(
+                                      postId,
+                                      context,
+                                      _commentController,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
