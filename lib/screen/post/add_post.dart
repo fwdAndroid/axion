@@ -15,6 +15,7 @@ import 'package:uuid/uuid.dart';
 import 'package:dotted_border/dotted_border.dart';
 import 'package:chewie/chewie.dart';
 import 'package:video_player/video_player.dart';
+import 'package:video_compress/video_compress.dart';
 
 class AddPost extends StatefulWidget {
   const AddPost({super.key});
@@ -41,13 +42,15 @@ class _AddPostState extends State<AddPost> {
   void initState() {
     super.initState();
     fetchData();
+    VideoCompress.setLogLevel(0); // Disable logs
   }
 
   void fetchData() async {
-    DocumentSnapshot doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(FirebaseAuth.instance.currentUser!.uid)
-        .get();
+    DocumentSnapshot doc =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(FirebaseAuth.instance.currentUser!.uid)
+            .get();
 
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
@@ -73,7 +76,13 @@ class _AddPostState extends State<AddPost> {
       _chewieController?.dispose();
 
       // Create new controller
-      _videoController = VideoPlayerController.file(videoFile);
+      final File? compressedFile = await _compressVideo(videoFile);
+      final File finalFile = compressedFile ?? videoFile;
+
+      _videoController = VideoPlayerController.file(
+        finalFile,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
       await _videoController!.initialize();
 
       // Setup listeners to update play button visibility
@@ -136,87 +145,89 @@ class _AddPostState extends State<AddPost> {
               height: 200,
               width: MediaQuery.of(context).size.width,
               padding: const EdgeInsets.all(8),
-              child: _mediaType.isEmpty
-                  ? DottedBorder(
-                      color: Colors.grey,
-                      strokeWidth: 1,
-                      borderType: BorderType.RRect,
-                      radius: const Radius.circular(9),
-                      dashPattern: const [6, 3],
-                      child: Center(
-                        child: TextButton(
-                          onPressed: selectMedia,
-                          child: const Text("Add Image/Video"),
+              child:
+                  _mediaType.isEmpty
+                      ? DottedBorder(
+                        color: Colors.grey,
+                        strokeWidth: 1,
+                        borderType: BorderType.RRect,
+                        radius: const Radius.circular(9),
+                        dashPattern: const [6, 3],
+                        child: Center(
+                          child: TextButton(
+                            onPressed: selectMedia,
+                            child: const Text("Add Image/Video"),
+                          ),
                         ),
-                      ),
-                    )
-                  : Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Image preview
-                        if (_mediaType == 'image')
-                          Image.memory(_image!, fit: BoxFit.cover),
+                      )
+                      : Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Image preview
+                          if (_mediaType == 'image')
+                            Image.memory(_image!, fit: BoxFit.cover),
 
-                        // Video preview
-                        if (_mediaType == 'video')
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Video player or placeholder
-                              if (_chewieController != null &&
-                                  _chewieController!
-                                      .videoPlayerController
-                                      .value
-                                      .isInitialized)
-                                Chewie(controller: _chewieController!)
-                              else
-                                Container(
-                                  color: Colors.black,
-                                  child: Center(
-                                    child: _isVideoInitializing
-                                        ? const CircularProgressIndicator()
-                                        : const Icon(
-                                            Icons.videocam,
-                                            size: 50,
-                                            color: Colors.white54,
-                                          ),
+                          // Video preview
+                          if (_mediaType == 'video')
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Video player or placeholder
+                                if (_chewieController != null &&
+                                    _chewieController!
+                                        .videoPlayerController
+                                        .value
+                                        .isInitialized)
+                                  Chewie(controller: _chewieController!)
+                                else
+                                  Container(
+                                    color: Colors.black,
+                                    child: Center(
+                                      child:
+                                          _isVideoInitializing
+                                              ? const CircularProgressIndicator()
+                                              : const Icon(
+                                                Icons.videocam,
+                                                size: 50,
+                                                color: Colors.white54,
+                                              ),
+                                    ),
                                   ),
-                                ),
 
-                              // Play button overlay
-                              if (_showPlayButtonOverlay &&
-                                  _chewieController != null &&
-                                  _chewieController!
-                                      .videoPlayerController
-                                      .value
-                                      .isInitialized)
-                                GestureDetector(
-                                  onTap: _toggleVideoPlayback,
-                                  child: Container(
-                                    color: Colors.transparent,
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.play_circle_filled,
-                                        size: 50,
-                                        color: Colors.white70,
+                                // Play button overlay
+                                if (_showPlayButtonOverlay &&
+                                    _chewieController != null &&
+                                    _chewieController!
+                                        .videoPlayerController
+                                        .value
+                                        .isInitialized)
+                                  GestureDetector(
+                                    onTap: _toggleVideoPlayback,
+                                    child: Container(
+                                      color: Colors.transparent,
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.play_circle_filled,
+                                          size: 50,
+                                          color: Colors.white70,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
+                              ],
+                            ),
 
-                        // Edit button
-                        Positioned(
-                          right: 10,
-                          top: 10,
-                          child: IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.white),
-                            onPressed: selectMedia,
+                          // Edit button
+                          Positioned(
+                            right: 10,
+                            top: 10,
+                            child: IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.white),
+                              onPressed: selectMedia,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
@@ -272,76 +283,92 @@ class _AddPostState extends State<AddPost> {
             isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (serviceNameController.text.isEmpty ||
-                            descriptionController.text.isEmpty) {
-                          showMessageBar("Please fill all fields", context);
-                          return;
+                  padding: const EdgeInsets.all(8.0),
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (serviceNameController.text.isEmpty ||
+                          descriptionController.text.isEmpty) {
+                        showMessageBar("Please fill all fields", context);
+                        return;
+                      }
+                      if (_mediaType.isEmpty) {
+                        showMessageBar("Please select media", context);
+                        return;
+                      }
+
+                      setState(() => isLoading = true);
+
+                      String? mediaUrl;
+                      try {
+                        if (_mediaType == 'image') {
+                          mediaUrl = await uploadImageToFirebase(_image!);
+                        } else {
+                          mediaUrl = await uploadVideoToFirebase(_videoFile!);
                         }
-                        if (_mediaType.isEmpty) {
-                          showMessageBar("Please select media", context);
-                          return;
-                        }
 
-                        setState(() => isLoading = true);
+                        await FirebaseFirestore.instance
+                            .collection('feeds')
+                            .doc(uuid)
+                            .set({
+                              'titleName': serviceNameController.text,
+                              'description': descriptionController.text,
+                              'mediaUrl': mediaUrl,
+                              'mediaType': _mediaType,
+                              'date': DateTime.now(),
+                              'uuid': uuid,
+                              'uid': FirebaseAuth.instance.currentUser!.uid,
+                              'favorite': [],
+                              'comment': [],
+                              'userImage': imageUrl,
+                              'userName': nameController.text,
+                            });
 
-                        String? mediaUrl;
-                        try {
-                          if (_mediaType == 'image') {
-                            mediaUrl = await uploadImageToFirebase(_image!);
-                          } else {
-                            mediaUrl = await uploadVideoToFirebase(_videoFile!);
-                          }
-
-                          await FirebaseFirestore.instance
-                              .collection('feeds')
-                              .doc(uuid)
-                              .set({
-                                'titleName': serviceNameController.text,
-                                'description': descriptionController.text,
-                                'mediaUrl': mediaUrl,
-                                'mediaType': _mediaType,
-                                'date': DateTime.now(),
-                                'uuid': uuid,
-                                'uid': FirebaseAuth.instance.currentUser!.uid,
-                                'favorite': [],
-                                'comment': [],
-                                'userImage': imageUrl,
-                                'userName': nameController.text,
-                              });
-
-                          showMessageBar("Feed Posted", context);
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (builder) => const MainDashboard(),
-                            ),
-                          );
-                        } catch (e) {
-                          showMessageBar("Error: $e", context);
-                        } finally {
-                          setState(() => isLoading = false);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        backgroundColor: mainColor,
-                        fixedSize: const Size(320, 60),
+                        showMessageBar("Feed Posted", context);
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (builder) => const MainDashboard(),
+                          ),
+                        );
+                      } catch (e) {
+                        showMessageBar("Error: $e", context);
+                      } finally {
+                        setState(() => isLoading = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
                       ),
-                      child: const Text(
-                        "Add Feed",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      backgroundColor: mainColor,
+                      fixedSize: const Size(320, 60),
+                    ),
+                    child: const Text(
+                      "Add Feed",
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
+                ),
           ],
         ),
       ),
     );
+  }
+
+  Future<File?> _compressVideo(File originalFile) async {
+    try {
+      final MediaInfo? compressedInfo = await VideoCompress.compressVideo(
+        originalFile.path,
+        quality: VideoQuality.MediumQuality,
+        deleteOrigin: false,
+        includeAudio: true,
+        frameRate: 30,
+      );
+      return compressedInfo?.file;
+    } catch (e) {
+      print("Compression error: $e");
+      return originalFile; // Fallback to original
+    }
   }
 
   Future<void> selectMedia() async {
@@ -373,19 +400,18 @@ class _AddPostState extends State<AddPost> {
               ),
               ListTile(
                 leading: const Icon(Icons.video_library),
-                title: const Text('Video'),
+                title: const Text('Video (max 1 minute)'),
                 onTap: () async {
                   Navigator.pop(context);
                   final videoXFile = await ImagePicker().pickVideo(
                     source: ImageSource.gallery,
-                    maxDuration: const Duration(minutes: 5),
+                    maxDuration: const Duration(minutes: 1), // Limit duration
                   );
-                  if (videoXFile != null) {
-                    final videoFile = File(videoXFile.path);
 
+                  if (videoXFile != null) {
                     setState(() {
                       _mediaType = 'video';
-                      _videoFile = videoFile;
+                      _videoFile = File(videoXFile.path);
                       _image = null;
                       _showPlayButtonOverlay = true;
                       _chewieController?.dispose();
@@ -394,7 +420,15 @@ class _AddPostState extends State<AddPost> {
                       _videoController = null;
                     });
 
-                    await _initializeVideoPlayer(videoFile);
+                    // Show compression progress
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Compressing video...'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+
+                    await _initializeVideoPlayer(_videoFile!);
                   }
                 },
               ),
@@ -415,11 +449,23 @@ class _AddPostState extends State<AddPost> {
   }
 
   Future<String> uploadVideoToFirebase(File videoFile) async {
+    // Compress before upload
+    final File? compressedFile = await _compressVideo(videoFile);
+    final File uploadFile = compressedFile ?? videoFile;
+
     Reference ref = FirebaseStorage.instance.ref().child(
-      'feed_videos/${Uuid().v4()}',
+      'feed_videos/${Uuid().v4()}.mp4', // Force .mp4 extension
     );
-    UploadTask uploadTask = ref.putFile(videoFile);
-    TaskSnapshot snap = await uploadTask;
+
+    // Show upload progress
+    final UploadTask uploadTask = ref.putFile(uploadFile);
+
+    uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+      final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+      print('Upload progress: ${(progress * 100).toStringAsFixed(1)}%');
+    });
+
+    final TaskSnapshot snap = await uploadTask;
     return await snap.ref.getDownloadURL();
   }
 }

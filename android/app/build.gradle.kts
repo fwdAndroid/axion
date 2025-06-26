@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.axion"
+    namespace = "com.zyron.app"
     compileSdk = 35
     ndkVersion = "27.0.12077973"
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.axion"
+        applicationId = "com.zyron.app"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

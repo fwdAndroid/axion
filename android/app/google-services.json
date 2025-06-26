@@ -1,26 +1,43 @@
 {
   "project_info": {
-    "project_number": "89999085403",
-    "project_id": "islamicprayerapp",
-    "storage_bucket": "islamicprayerapp.appspot.com"
+    "project_number": "845168107634",
+    "project_id": "practo-9b6f5",
+    "storage_bucket": "practo-9b6f5.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:89999085403:android:d197ec0ee16a564c2c547e",
+        "mobilesdk_app_id": "1:845168107634:android:ca23bc3c399233370862eb",
         "android_client_info": {
-          "package_name": "com.example.axion"
+          "package_name": "com.zyron.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "845168107634-nfetcfl254f16tta53qseau728a91nfa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyBbTKPwb7BCwSfw9ElweoAu_jahbg9Ig7g"
+          "current_key": "AIzaSyD-C2Bb8Ogu1ejECSupcEcnbkaIeavJwKY"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "845168107634-nfetcfl254f16tta53qseau728a91nfa.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "845168107634-l5k5gln2i52vf10n6pkvmmks56pd792n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.comsjsa"
+              }
+            }
+          ]
         }
       }
     }

@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -53,10 +50,22 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBbTKPwb7BCwSfw9ElweoAu_jahbg9Ig7g',
-    appId: '1:89999085403:android:d197ec0ee16a564c2c547e',
-    messagingSenderId: '89999085403',
-    projectId: 'islamicprayerapp',
-    storageBucket: 'islamicprayerapp.appspot.com',
+    apiKey: 'AIzaSyD-C2Bb8Ogu1ejECSupcEcnbkaIeavJwKY',
+    appId: '1:845168107634:android:ca23bc3c399233370862eb',
+    messagingSenderId: '845168107634',
+    projectId: 'practo-9b6f5',
+    storageBucket: 'practo-9b6f5.appspot.com',
   );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDmviw6rowFmDoVXLv5Vs3Ri2GmcIu7a4I',
+    appId: '1:845168107634:ios:9c7d856f94302c080862eb',
+    messagingSenderId: '845168107634',
+    projectId: 'practo-9b6f5',
+    storageBucket: 'practo-9b6f5.appspot.com',
+    androidClientId: '845168107634-95hnjba0vrc6pntlis4vh696o7468ig4.apps.googleusercontent.com',
+    iosClientId: '845168107634-afdotmdshhdt6a0j1abnqmi7lrduje78.apps.googleusercontent.com',
+    iosBundleId: 'com.zyron.app',
+  );
+
 }
