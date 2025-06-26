@@ -225,21 +225,21 @@ class _MyCommunitiesState extends State<MyCommunities> {
                           moreStyle: const TextStyle(color: Colors.blue),
                           lessStyle: const TextStyle(color: Colors.blue),
                         ),
-                        if (mediaUrl.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: MediaPreviewWidget(
-                              videoControllers: _videoControllers,
-                              chewieControllers: _chewieControllers,
-                              videoInitializationFutures:
-                                  _videoInitializationFutures,
-                              mediaUrl: mediaUrl,
-                              mediaType: mediaType,
-                              postId: postId,
+                        // if (mediaUrl.isNotEmpty)
+                        //   Padding(
+                        //     padding: const EdgeInsets.only(top: 8.0),
+                        //     child: MediaPreviewWidget(
+                        //       videoControllers: _videoControllers,
+                        //       chewieControllers: _chewieControllers,
+                        //       videoInitializationFutures:
+                        //           _videoInitializationFutures,
+                        //       mediaUrl: mediaUrl,
+                        //       mediaType: mediaType,
+                        //       postId: postId,
 
-                              refreshParent: () => setState(() {}),
-                            ),
-                          ),
+                        //       refreshParent: () => setState(() {}),
+                        //     ),
+                        //   ),
                         const Divider(),
                         PostActionsWidgetCommuity(
                           postId: postId,

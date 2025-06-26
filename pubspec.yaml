@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  better_player_plus: ^1.0.8
   chewie: ^1.11.3
   cloud_firestore: ^5.6.5
   cupertino_icons: ^1.0.8
@@ -47,9 +48,12 @@ dependencies:
   intl: ^0.20.2
   path: ^1.9.1
   path_provider: ^2.1.5
+  percent_indicator: ^4.2.5
+  provider: ^6.1.5
   readmore: ^3.0.0
   share_plus: ^10.1.4
   shared_preferences: ^2.5.2
+  shimmer_animation: ^2.2.2
   social_login_buttons: ^1.0.7
   uuid: ^4.5.1
   video_compress: ^3.1.4
